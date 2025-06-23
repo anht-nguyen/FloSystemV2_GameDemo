@@ -19,7 +19,7 @@ ROS Parameters (private, ~namespace)
 ------------------------------------
   preview            (bool, default: True)   – show OpenCV GUI window
   pose               (str,  default: "all")  – which gesture(s) to detect
-  image              (str,  default: "/camera/color/image_raw")
+  image              (str,  default: "/usb_cam/image_raw")
 
 Author: 2025, FLO Robot project
 """
@@ -32,11 +32,19 @@ import cv2
 import numpy as np
 import mediapipe as mp
 
-# Helper with all geometric logic ported from the original scripts
-from flo_vision.arm_tracker_helper import ArmTracker   
+# Helper with the geometric logic
+from flo_vision.arm_tracker_helper import ArmTracker
 
-# ----- OpenCV window initialisation (must run in *main* thread) -----
+# ──────────────────────────────────────────────────────
+# MediaPipe drawing utilities
+# ──────────────────────────────────────────────────────
+mp_drawing = mp.solutions.drawing_utils
+mp_drawing_styles = mp.solutions.drawing_styles
+
+# Force HighGUI to create its own GUI thread
+cv2.startWindowThread()
 cv2.namedWindow("FLO Vision – Arms & Hands", cv2.WINDOW_NORMAL)
+
 
 class ArmHandTrackerNode:
     def __init__(self):
@@ -45,23 +53,23 @@ class ArmHandTrackerNode:
         self.preview = rospy.get_param("~preview", True)
         self.pose_to_detect = rospy.get_param("~pose", "all")
 
+        # Topic names are param‑configurable so the same launch file can be reused
         image_topic = rospy.get_param("~image", "/usb_cam/image_raw")
 
-        # Frame buffer shared with the main‑loop GUI refresher
-        self.preview_frame = None
+        self.preview_frame = None  # shared buffer for the GUI loop
 
         # Publishers
-        self.pub_left_elbow   = rospy.Publisher("~left_elbow_angle",   Float32, queue_size=10)
-        self.pub_right_elbow  = rospy.Publisher("~right_elbow_angle",  Float32, queue_size=10)
-        self.pub_left_shldr   = rospy.Publisher("~left_shoulder_angle",Float32, queue_size=10)
-        self.pub_right_shldr  = rospy.Publisher("~right_shoulder_angle",Float32, queue_size=10)
-        self.pub_gesture      = rospy.Publisher("~gesture",            String,  queue_size=10)
+        self.pub_left_elbow = rospy.Publisher("~left_elbow_angle", Float32, queue_size=10)
+        self.pub_right_elbow = rospy.Publisher("~right_elbow_angle", Float32, queue_size=10)
+        self.pub_left_shldr = rospy.Publisher("~left_shoulder_angle", Float32, queue_size=10)
+        self.pub_right_shldr = rospy.Publisher("~right_shoulder_angle", Float32, queue_size=10)
+        self.pub_gesture = rospy.Publisher("~gesture", String, queue_size=10)
 
-        # Subscriber – image acquisition happens in its own thread (rospy’s design)
-        rospy.Subscriber(image_topic, Image, self.image_callback, queue_size=1, buff_size=2**24)
+        # Subscriber
+        rospy.Subscriber(image_topic, Image, self.image_callback, queue_size=1, buff_size=2 ** 24)
 
         # --------- MediaPipe initialisation ----------
-        self.arm_tracker = ArmTracker()                              # domain logic
+        self.arm_tracker = ArmTracker()
         self.mp_pose = mp.solutions.pose
         self.mp_hands = mp.solutions.hands
         self.pose = self.mp_pose.Pose(min_detection_confidence=0.5,
@@ -72,9 +80,9 @@ class ArmHandTrackerNode:
 
         rospy.loginfo("arm_hand_tracker_node initialised – awaiting images…")
 
-    # ==================================================================
+    # ======================================================================
     #                            CALLBACK
-    # ==================================================================
+    # ======================================================================
     def image_callback(self, msg: Image):
         """Main image processing pipeline."""
         try:
@@ -93,13 +101,31 @@ class ArmHandTrackerNode:
         # ----- MediaPipe inference -----
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         rgb.flags.writeable = False
-        pose_results  = self.pose.process(rgb)
-        hand_results  = self.hands.process(rgb)
+        pose_results = self.pose.process(rgb)
+        hand_results = self.hands.process(rgb)
         rgb.flags.writeable = True
         image_bgr = frame  # keep original for drawing
 
-        # Dimensions for text overlay
         h, w = image_bgr.shape[:2]
+
+        # ------------------------------------------------------------------
+        #               DRAW POSE & HAND LANDMARKS (NEW)
+        # ------------------------------------------------------------------
+        if pose_results.pose_landmarks:
+            mp_drawing.draw_landmarks(
+                image_bgr,
+                pose_results.pose_landmarks,
+                self.mp_pose.POSE_CONNECTIONS,
+                landmark_drawing_spec=mp_drawing_styles.get_default_pose_landmarks_style(),
+            )
+
+        if hand_results.multi_hand_landmarks:
+            for hlm in hand_results.multi_hand_landmarks:
+                mp_drawing.draw_landmarks(
+                    image_bgr,
+                    hlm,
+                    self.mp_hands.HAND_CONNECTIONS,
+                )
 
         # ------------------------------------------------------------------
         #                  ARM / SHOULDER ANGLES + GESTURES
@@ -107,11 +133,8 @@ class ArmHandTrackerNode:
         if pose_results.pose_landmarks:
             landmarks = pose_results.pose_landmarks.landmark
 
-            # get_arm_info() returns (shoulder, elbow, wrist, elbow_angle, shoulder_angle)
-            l_sh, l_el, l_wr, l_el_ang, l_sh_ang = self.arm_tracker.get_arm_info(
-                landmarks, side="left")
-            r_sh, r_el, r_wr, r_el_ang, r_sh_ang = self.arm_tracker.get_arm_info(
-                landmarks, side="right")
+            l_sh, l_el, l_wr, l_el_ang, l_sh_ang = self.arm_tracker.get_arm_info(landmarks, side="left")
+            r_sh, r_el, r_wr, r_el_ang, r_sh_ang = self.arm_tracker.get_arm_info(landmarks, side="right")
 
             # Publish angles when valid
             if l_el_ang is not None:
@@ -143,31 +166,32 @@ class ArmHandTrackerNode:
 
             # Optionally overlay angle values on‑screen
             if self.preview and l_sh is not None and r_sh is not None:
-                cv2.putText(image_bgr, f"{int(l_el_ang)}",
-                            (int(l_el[0]*w), int(l_el[1]*h)),
+                cv2.putText(image_bgr, f"{int(l_el_ang)}", (int(l_el[0] * w), int(l_el[1] * h)),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-                cv2.putText(image_bgr, f"{int(r_el_ang)}",
-                            (int(r_el[0]*w), int(r_el[1]*h)),
+                cv2.putText(image_bgr, f"{int(r_el_ang)}", (int(r_el[0] * w), int(r_el[1] * h)),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
 
         # ------------------------------------------------------------------
-        #                  PASS FRAME TO GUI REFRESHER
+        #                  OPTIONAL GUI WINDOW
         # ------------------------------------------------------------------
         if self.preview:
-            self.preview_frame = image_bgr
+            self.preview_frame = image_bgr  # stash latest frame for main‑thread GUI
 
+
+# ======================================================================
+#                           MAIN PROGRAM LOOP
+# ======================================================================
 
 def main():
     rospy.init_node("arm_hand_tracker")
     tracker = ArmHandTrackerNode()
-    rate = rospy.Rate(30)  # ~30 Hz GUI refresh
+    rate = rospy.Rate(30)  # ≈30 Hz GUI refresh
 
     try:
         while not rospy.is_shutdown():
             if tracker.preview and tracker.preview_frame is not None:
                 cv2.imshow("FLO Vision – Arms & Hands", tracker.preview_frame)
-                # ESC key closes the preview window only (node keeps running)
-                if cv2.waitKey(1) & 0xFF == 27:
+                if cv2.waitKey(1) & 0xFF == 27:  # ESC quits preview
                     rospy.loginfo("ESC pressed, quitting preview.")
                     tracker.preview = False
                     cv2.destroyAllWindows()

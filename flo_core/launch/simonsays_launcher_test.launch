@@ -1,0 +1,9 @@
+<!-- simon_says_local.launch -->
+<launch>
+  ...
+  <node pkg="flo_core" type="game_runner.py" name="game_runner"
+        output="screen">
+    <param name="game_def_file" value="$(find flo_core)/test/simonsays_test.yaml"/>
+    <param name="success_threshold" value="0.8"/>
+  </node>
+</launch>

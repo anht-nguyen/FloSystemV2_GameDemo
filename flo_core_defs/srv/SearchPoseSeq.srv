@@ -1,0 +1,4 @@
+string search
+---
+PoseSeq[] sequences
+uint32[] ids

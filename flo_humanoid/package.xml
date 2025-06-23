@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>flo_humanoid</name>
+  <version>0.0.1</version>
+  <description>
+    Dynamixel-powered arm control layer for the FloSystem Simon Says game.
+    Provides driver, pose-player action server, and convenience utilities
+    built on top of the Robotis dynamixel_sdk.
+  </description>
+
+  <!-- One sentence summary for ROS index -->
+  <!-- <summary>Dynamixel control nodes for the Flo robot</summary> -->
+
+  <!-- License and authorship -->
+   <license>MIT</license>
+
+  <maintainer email="you@example.com">Your Name</maintainer>
+  <author email="you@example.com">Your Name</author> 
+
+  <license>proprietery</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>roscpp</depend>  
+  <depend>std_msgs</depend>
+  <depend>dynamixel_sdk</depend>
+  <build_depend>message_generation</build_depend>
+  <exec_depend>message_runtime</exec_depend>
+
+  <!-- Export section for non-catkin CMake config, if ever needed -->
+  <export>
+    <!-- Empty for now -->
+  </export>
+</package>

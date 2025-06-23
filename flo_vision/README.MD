@@ -72,6 +72,12 @@ Astra S Camera parameter [here](https://store.orbbec.com/products/astra-s?srslti
 1. Install the Ubuntu SDK [here](https://www.orbbec.com/developers/astra-sdk/)
 2. Install the
 
+```
+rosrun flo_vision arm_hand_tracker_node.py _image:=/camera/color/image_raw _preview:=true
+```
+
+roslaunch astra_camera astra.launch
+
 ### **Option C: Using launch file on USB Camera**
 
 ```sh

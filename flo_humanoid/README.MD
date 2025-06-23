@@ -18,6 +18,10 @@
 - ROS (Melodic/Noetic or compatible)
 - Standard ROS message packages
 - Other packages in `FloSystemV2_GameDemo`
+- Dynamixel SDK
+    ```sh
+    sudo apt install ros-noetic-dynamixel-sdk ros-noetic-controller-manager ros-noetic-joint-state-controller ros-noetic-joint-state-publisher ros-noetic-robot-state-publisher ros-noetic-message-generation ros-noetic-message-runtime
+    ```
 
 
 ---

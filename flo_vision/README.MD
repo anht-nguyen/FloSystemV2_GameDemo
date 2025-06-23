@@ -23,6 +23,7 @@ This package provides a MediaPipe-based hand and arm tracker for the FLO robot, 
 
    ```sh
    sudo apt-get install ros-noetic-usb-cam ros-noetic-cv-bridge ros-noetic-image-transport ros-noetic-sensor-msgs ros-noetic-std-msgs
+   source /opt/ros/noetic/setup.bash
    ```
 
 2. **Install Python dependencies:**
@@ -37,7 +38,7 @@ This package provides a MediaPipe-based hand and arm tracker for the FLO robot, 
 
    ```sh
    cd ~/catkin_ws_flogamedemo
-   catkin_make
+   catkin build flo_vision
    source devel/setup.bash
    ```
 

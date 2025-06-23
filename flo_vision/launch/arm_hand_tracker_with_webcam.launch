@@ -13,7 +13,7 @@
   <!-- Arm/hand tracker -->
   <node pkg="flo_vision" type="arm_hand_tracker_node.py" name="arm_hand_tracker">
     <param name="image"   value="/usb_cam/image_raw"/>
-    <param name="pose"    value="all"/>
+    <param name="pose"    value="wave"/>
     <param name="preview" value="true"/>
   </node>
 </launch>

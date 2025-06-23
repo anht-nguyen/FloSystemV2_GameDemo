@@ -1,0 +1,19 @@
+<launch>
+  <!-- Integrated webcam driver -->
+  <node pkg="usb_cam" type="usb_cam_node" name="usb_cam">
+    <param name="video_device" value="/dev/video0"/>
+    <param name="image_width"  value="640"/>
+    <param name="image_height" value="480"/>
+    <param name="framerate"    value="30"/>
+    <param name="pixel_format" value="yuyv"/>
+    <!-- Align topic name with tracker -->
+    <remap from="image_raw" to="/usb_cam/image_raw"/>
+  </node>
+
+  <!-- Arm/hand tracker -->
+  <node pkg="flo_vision" type="arm_hand_tracker_node.py" name="arm_hand_tracker">
+    <param name="image"   value="/usb_cam/image_raw"/>
+    <param name="pose"    value="all"/>
+    <param name="preview" value="true"/>
+  </node>
+</launch>

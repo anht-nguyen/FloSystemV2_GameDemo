@@ -1,0 +1,40 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>flo_vision</name>
+  <version>0.1.0</version>
+  <description>Hand + arm tracker for the FLO robot (MediaPipe-based, ROS Noetic).</description>
+
+  <!-- Maintainer & licence -->
+  <maintainer email="anhtn@example.com">Anh Nguyen</maintainer>
+  <license>MIT</license>
+
+  <!-- Build tools -->
+  <buildtool_depend>catkin</buildtool_depend>
+  <buildtool_depend>python3-setuptools</buildtool_depend>
+
+  <!-- Catkin-time dependencies (needed while building or when other pkgs link against this one) -->
+  <build_depend>cv_bridge</build_depend>
+  <build_depend>image_transport</build_depend>
+  <build_depend>rospy</build_depend>
+  <build_depend>sensor_msgs</build_depend>
+  <build_depend>std_msgs</build_depend>
+
+  <build_export_depend>cv_bridge</build_export_depend>
+  <build_export_depend>image_transport</build_export_depend>
+  <build_export_depend>rospy</build_export_depend>
+  <build_export_depend>sensor_msgs</build_export_depend>
+  <build_export_depend>std_msgs</build_export_depend>
+
+  <!-- Run-time dependencies (catkin + system) -->
+  <exec_depend>cv_bridge</exec_depend>
+  <exec_depend>image_transport</exec_depend>
+  <exec_depend>rospy</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+
+  <!-- Non-catkin Python libs come *only* here; rosdep will install apt/pip packages if available -->
+  <exec_depend>python3-opencv</exec_depend>
+  <exec_depend>python3-mediapipe</exec_depend>
+
+  <export/>
+</package>

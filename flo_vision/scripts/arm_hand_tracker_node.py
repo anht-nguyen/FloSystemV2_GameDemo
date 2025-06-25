@@ -67,7 +67,7 @@ class ArmHandTrackerNode:
 
         # Subscriber
         rospy.Subscriber(image_topic, Image, self.image_callback, queue_size=1, buff_size=2 ** 24)
-
+        rospy.Subscriber("~pose_command",String, self.pose_command_callback, queue_size= 1)
         # --------- MediaPipe initialisation ----------
         self.arm_tracker = ArmTracker()
         self.mp_pose = mp.solutions.pose
@@ -83,6 +83,19 @@ class ArmHandTrackerNode:
     # ======================================================================
     #                            CALLBACK
     # ======================================================================
+    def pose_command_callback(self, msg: String):
+        """Examine the pose to detect"""
+        new_pose = msg.data.strip().lower()
+       
+        # 
+        valid_poses = ["all", "wave", "swing_lateral", "swing_forward", "raise", "reaching_side"]
+        if new_pose in valid_poses:
+            old_pose = self.pose_to_detect
+            self.pose_to_detect = new_pose
+            rospy.loginfo(f"Pose detection changed from '{old_pose}' to '{new_pose}'")
+        else:
+            rospy.logwarn(f"Invalid pose type: '{new_pose}'. Valid types: {valid_poses}")
+
     def image_callback(self, msg: Image):
         """Main image processing pipeline."""
         try:
@@ -97,6 +110,8 @@ class ArmHandTrackerNode:
         if not hasattr(self, "_notified"):
             rospy.loginfo(f"[Tracker] first frame sum = {frame.sum()}")
             self._notified = True
+        
+        frame = cv2.flip(frame, 1)
 
         # ----- MediaPipe inference -----
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)

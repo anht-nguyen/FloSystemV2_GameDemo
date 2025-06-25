@@ -109,7 +109,7 @@ flo_humanoid/
      ```
 
 3. **Communication**:  
-   - The `read_write_arms_node` subscribes to the `/set_arms_joint_positions` topic, which is published by `dualPosition.py` from the `movewithhead` package.  
+   - The `read_write_arms_node` subscribes to the `/set_arms_joint_positions` topic, which is published by `dualPosition.py` from the `flo_core` package.  
    - Data format for motor positions is defined in the `GetArmsJointPositions.srv` service.
 
 ---

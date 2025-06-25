@@ -1,44 +1,57 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.1.3)
 project(flo_core)
 
-## Compile as C++11, supported in ROS Kinetic and newer
-add_compile_options(-std=c++11)
-
-## Find catkin macros and libraries
+## Find catkin and any catkin packages
 find_package(catkin REQUIRED COMPONENTS
   roscpp
+  rospy
   std_msgs
-  flo_core_defs
-  flo_humanoid
+  moveit_ros_planning_interface
 )
 
-###################################
-## catkin specific configuration ##
-###################################
+## Use Python setup for proper package install
+find_package(PythonInterp 3 REQUIRED)
+find_package(PythonLibs 3 REQUIRED)
+
+# Python helper – lets `setup.py` install modules and scripts
+catkin_python_setup()
+
+## Declare a catkin package
 catkin_package(
-  CATKIN_DEPENDS roscpp std_msgs flo_core_defs flo_humanoid
+  CATKIN_DEPENDS roscpp rospy std_msgs moveit_ros_planning_interface
 )
 
-###########
-## Build ##
-###########
-
+## Include directories
 include_directories(
   ${catkin_INCLUDE_DIRS}
 )
 
-# Example: Uncomment and edit the following lines if you have source files to build
-# add_executable(example_node src/example_node.cpp)
-# add_dependencies(example_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-# target_link_libraries(example_node ${catkin_LIBRARIES})
+## Ensure Python package directory contains __init__.py
+# (Make sure src/flo_core/__init__.py exists.)
 
-#############
-## Install ##
-#############
-
-# Install launch, config, and scripts directories
-install(DIRECTORY launch config scripts
-  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
-  USE_SOURCE_PERMISSIONS
+## Install Python library modules
+install(DIRECTORY src/flo_core/
+  DESTINATION ${CATKIN_PACKAGE_PYTHON_DESTINATION}/flo_core
+  FILES_MATCHING PATTERN "*.py"
 )
 
+## Install Python executables
+catkin_install_python(PROGRAMS
+  scripts/moveit_controller.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
+## Install launch and config directories
+install(DIRECTORY launch/
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch
+)
+install(DIRECTORY config/
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/config
+)
+
+# ## (Optional) Example C++ node
+# add_executable(dummy_node src/dummy_node.cpp)
+# target_link_libraries(dummy_node ${catkin_LIBRARIES})
+# install(TARGETS dummy_node
+#   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+# )

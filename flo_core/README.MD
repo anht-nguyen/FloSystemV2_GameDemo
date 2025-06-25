@@ -10,7 +10,7 @@ This package focuses on motor control for the Flo V2 robot, particularly for sen
   It can simultaneously send data for **10 motors** to the robot based on motor IDs.
 
 - **Communication Flow**:  
-  - Subscribes to the topic `/set_arms_joint_positions`, which is published by the control program `dualPosition.py` in the `movewithhead` package.  
+  - Subscribes to the topic `/set_arms_joint_positions`, which is published by the control program `dualPosition.py` in the `flo_core` package.  
   - Uses the `GetArmsJointPositions.srv` service to define the data format sent to the motors.
 
 ---
@@ -87,7 +87,7 @@ flo_humanoid/
      ```
 
 3. **Communication**:  
-   - The `read_write_arms_node` subscribes to the `/set_arms_joint_positions` topic, which is published by `dualPosition.py` from the `movewithhead` package.  
+   - The `read_write_arms_node` subscribes to the `/set_arms_joint_positions` topic, which is published by `dualPosition.py` from the `flo_core` package.  
    - Data format for motor positions is defined in the `GetArmsJointPositions.srv` service.
 
 ---

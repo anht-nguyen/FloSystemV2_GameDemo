@@ -34,6 +34,7 @@ def main():
         grp.set_goal_position_tolerance(0.001)
         grp.set_goal_orientation_tolerance(1)
         grp.set_max_acceleration_scaling_factor(0.6)
+        grp.set_max_velocity_scaling_factor(0.5)
 
 
     # Instantiate the action sequence controller

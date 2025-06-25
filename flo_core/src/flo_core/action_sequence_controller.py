@@ -82,11 +82,10 @@ class ActionSequenceController:
             arm.go()
 
     def _do_swing_lateral(self, arm) -> None:
-        # placeholder: lateral swing implementation
         for _ in range(3):
-            arm.set_named_target(f"{arm.get_name()}_swing_lat_left")
+            arm.set_named_target(f"{arm.get_name()}_waveb")
             arm.go()
-            arm.set_named_target(f"{arm.get_name()}_swing_lat_right")
+            arm.set_named_target(f"{arm.get_name()}_d_bell")
             arm.go()
 
     def _do_swing_forward(self, arm) -> None:

@@ -93,7 +93,7 @@ class ArmHandTrackerNode:
         new_pose = msg.data.strip().lower()
        
         pose_list = [p.strip() for p in new_pose.split(',') if p.strip()]
-        valid_poses = ["all", "wave", "swing_lateral", "swing_forward", "raise"]
+        valid_poses = ["all", "wave", "swing_lateral", "swing_forward", "raise", "d_wave_left", "d_wave_right"]
         invalid_poses = [p for p in pose_list if p not in valid_poses]
        
         if invalid_poses:
@@ -193,7 +193,14 @@ class ArmHandTrackerNode:
             if "raise" in self.pose_to_detect or "all" in self.pose_to_detect:
                 if self.arm_tracker.is_arm_raise(landmarks, image_bgr):
                     detected_gestures.append("raise")
-
+                
+            if "d_wave_left" in self.pose_to_detect or "all" in self.pose_to_detect:
+                if self.arm_tracker.is_left_arm_wave(landmarks, image_bgr):
+                    detected_gestures.append("d_wave_left")
+            
+            if "d_wave_right" in self.pose_to_detect or "all" in self.pose_to_detect:
+                if self.arm_tracker.is_right_arm_wave(landmarks, image_bgr):
+                    detected_gestures.append("d_wave_right")
 
             # publish the gesture
             if detected_gestures:

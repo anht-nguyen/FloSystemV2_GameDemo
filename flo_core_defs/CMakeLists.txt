@@ -8,6 +8,7 @@ project(flo_core_defs)
 find_package(catkin REQUIRED COMPONENTS
   message_generation
   std_msgs
+  actionlib_msgs
   flo_humanoid
 )
 
@@ -24,6 +25,8 @@ add_message_files(
   GameDef.msg
   GameState.msg
   StepDef.msg
+  PoseScore.msg 
+  Emotion.msg
 )
 
 ## Generate services in the 'srv' folder
@@ -36,12 +39,21 @@ add_service_files(
   SetUtterance.srv
 )
 
+add_action_files(
+  FILES
+    SimonCmd.action
+)
+
 ## Generate added messages and services with any dependencies listed here
 generate_messages(
   DEPENDENCIES
   std_msgs
+  actionlib_msgs
   flo_humanoid
 )
+
+
+
 
 ###################################
 ## catkin specific configuration ##
@@ -50,8 +62,12 @@ catkin_package(
   CATKIN_DEPENDS
     message_runtime
     std_msgs
+    actionlib_msgs
     flo_humanoid
 )
+
+
+
 
 ###########
 ## Build ##

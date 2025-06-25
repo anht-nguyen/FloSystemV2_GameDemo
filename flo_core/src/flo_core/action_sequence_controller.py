@@ -6,9 +6,9 @@ class Action(IntEnum):
     HOME               = 0
     # Dynamic (repeated) actions
     D_WAVE             = 10
-    D_RAISE            = 11
-    D_SWING_LATERAL    = 12
-    D_SWING_FORWARD    = 13
+    D_SWING_LATERAL    = 11
+    D_RAISE            = 12 # Note: might not be used due to potential limitations with CV detection
+    D_SWING_FORWARD    = 13 # Note: might not be used due to potential limitations with CV detection
     # Static (single) actions
     S_RAISE            = 20
     S_REACH_SIDE       = 21

@@ -49,9 +49,3 @@ install(DIRECTORY config/
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/config
 )
 
-# ## (Optional) Example C++ node
-# add_executable(dummy_node src/dummy_node.cpp)
-# target_link_libraries(dummy_node ${catkin_LIBRARIES})
-# install(TARGETS dummy_node
-#   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-# )

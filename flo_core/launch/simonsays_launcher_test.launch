@@ -1,9 +1,13 @@
-<!-- simon_says_local.launch -->
+<!-- test_simonsays.launch -->
 <launch>
-  ...
-  <node pkg="flo_core" type="game_runner.py" name="game_runner"
-        output="screen">
-    <param name="game_def_file" value="$(find flo_core)/test/simonsays_test.yaml"/>
-    <param name="success_threshold" value="0.8"/>
+  <!-- message/action definitions must already be built & sourced -->
+  <node pkg="flo_core" type="stub_simon_server.py" name="stub_server"/>
+  <node pkg="flo_core" type="stub_pose_publisher.py" name="stub_pose"/>
+  <node pkg="flo_core" type="game_runner.py" name="game_runner">
+      <!-- optional params -->
+      <param name="gestures" value="['wave','arms_up']" />
+      <param name="turn_timeout" value="8.0" />
   </node>
+  <!-- smach viewer (optional) -->
+  <node pkg="smach_viewer" type="smach_viewer.py" name="viewer"/>
 </launch>

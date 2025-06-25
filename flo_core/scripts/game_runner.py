@@ -1,190 +1,269 @@
 #!/usr/bin/env python3
 """
-game_runner.py – high-level game orchestrator for Responsive Simon Says
-ROS Noetic | Python 3.x
+FLO‑Core ─ game_runner.py
+========================
+Executive state‑machine that coordinates a responsive “Simon Says” game.
 
-* Publishes  GameAction  – what the robot should do next
-* Publishes  GameState   – IDLE, RUNNING, SUCCESS, FAILURE, FINISHED
-* Subscribes GameCommand – external control (start / stop / pause …)
-* Subscribes PoseScore   – vision feedback for each trial
-* Uses      GetPoseID    – resolve a single pose by numeric ID
-* Uses      GetPoseSeqID – resolve a pose *sequence* (if StepDef.type=="sequence")
+*   Publishes/consumes only high‑level ROS APIs – it does **not** touch
+    low‑level hardware or vision code directly.
+*   Built with **SMACH** so that behaviour can be visualised live in
+    *smach_viewer* and unit‑tested in isolation.
+*   Compatible with ROS Noetic (Python 3).
 
-Author: 2025, FLO Robot project
+Topics & actions
+----------------
+/pose_score            (flo_msgs/PoseScore)        – vision result
+events
+/simon_cmd             (flo_msgs/SimonCmdAction)   – robot gesture
+/emotion               (flo_msgs/Emotion)          – face display
+
+Custom userdata keys
+--------------------
+gesture_name : str     – YAML key for next gesture
+simon_says   : bool    – whether the prompt includes “Simon says”
+turn_idx     : int     – running counter for statistics
+score        : int     – accumulated player score
+turn_timeout : float   – seconds allowed to respond each turn
+pose_matched : bool    – result latched from vision layer
 """
 
-import yaml
+from __future__ import annotations
+
+import random
+from typing import List, Dict
+
 import rospy
+import smach
+import smach_ros
 from std_msgs.msg import Header
 
-# ---- custom interfaces ------------------------------------------------------
-from flo_core_defs.msg import (                     # adjust package name if needed
-    GameAction, GameCommand, GameState,
-    PoseScore, StepDef, GameDef                      # PoseScore.msg lives in flo_core_defs too
-)
-from flo_core_defs.srv import (
-    GetPoseID,       GetPoseIDRequest,
-    GetPoseSeqID,    GetPoseSeqIDRequest,
-)
+# FLO custom interfaces
+from flo_core_defs.msg import PoseScore, Emotion
+from flo_core_defs.msg import SimonCmdAction, SimonCmdGoal
 
-STATE_IDLE      = "IDLE"
-STATE_RUNNING   = "RUNNING"
-STATE_SUCCESS   = "SUCCESS"
-STATE_FAILURE   = "FAILURE"
-STATE_FINISHED  = "FINISHED"
 
-class GameRunner:
-    """High-level state machine for Simon Says."""
+# ---------------------------------------------------------------------------
+#  Simple helper states
+# ---------------------------------------------------------------------------
+class WaitForPose(smach.State):
+    """State that waits until the player matches the target pose *or* times out."""
+
     def __init__(self):
-        # --- parameters ---
-        yaml_file         = rospy.get_param("~game_def_file", "config/simon_says.yaml")
-        self.success_tol  = rospy.get_param("~success_threshold", 0.7)   # PoseScore.score ∈ [0,1]
+        smach.State.__init__(
+            self,
+            outcomes=["matched", "timeout", "preempted"],
+            input_keys=["turn_timeout"],
+            output_keys=["pose_matched"],
+        )
+        self._pose_sub = rospy.Subscriber("/pose_score", PoseScore, self._pose_cb)
+        self._latest_match = False
 
-        # --- load game definition ---
-        self.game_def = self._load_game_def(yaml_file)
-        self.current_step_idx = 0
-        self.current_rep      = 0
-        self.in_progress      = False
+    # --------------------------------------------------
+    def _pose_cb(self, msg: PoseScore):  # noqa: D401
+        """Latched callback; only considers *True* events."""
+        if msg.matched:
+            self._latest_match = True
 
-        # --- comms ---
-        self.pub_action = rospy.Publisher("game_action", GameAction, queue_size=10, latch=True)
-        self.pub_state  = rospy.Publisher("game_state",  GameState,  queue_size=10, latch=True)
+    # --------------------------------------------------
+    def execute(self, userdata):  # noqa: D401
+        self._latest_match = False
+        start = rospy.Time.now()
+        rate = rospy.Rate(30)
 
-        rospy.Subscriber("game_command", GameCommand, self._command_cb, queue_size=10)
-        rospy.Subscriber("pose_score",   PoseScore,   self._pose_score_cb, queue_size=10)
+        while not rospy.is_shutdown():
+            if self._latest_match:
+                userdata.pose_matched = True
+                return "matched"
+            if (rospy.Time.now() - start).to_sec() > userdata.turn_timeout:
+                userdata.pose_matched = False
+                return "timeout"
+            if self.preempt_requested():
+                self.service_preempt()
+                userdata.pose_matched = False
+                return "preempted"
+            rate.sleep()
 
-        # --- service proxies ---
-        rospy.wait_for_service("get_pose_by_id")
-        rospy.wait_for_service("get_pose_seq_by_id")
-        self.srv_pose     = rospy.ServiceProxy("get_pose_by_id",     GetPoseID)
-        self.srv_pose_seq = rospy.ServiceProxy("get_pose_seq_by_id", GetPoseSeqID)
 
-        # publish initial state
-        self._publish_state(STATE_IDLE)
-        rospy.loginfo("✅  game_runner spun up and waiting for GameCommand…")
+class EvaluateState(smach.State):
+    """Assign *good* or *bad* outcome based on WaitForPose result."""
 
-    # --------------------------------------------------------------------- #
-    #  Callbacks                                                            #
-    # --------------------------------------------------------------------- #
-    def _command_cb(self, msg: GameCommand):
-        cmd = msg.command.lower().strip()
-        rospy.loginfo(f"[game_runner] Received command: {cmd}")
-        if cmd == "start" and not self.in_progress:
-            self.current_step_idx = 0
-            self.current_rep      = 0
-            self.in_progress      = True
-            self._publish_state(STATE_RUNNING)
-            self._dispatch_current_step()
+    def __init__(self):
+        smach.State.__init__(
+            self,
+            outcomes=["good", "bad"],
+            input_keys=["pose_matched", "score"],
+            output_keys=["score"],
+        )
 
-        elif cmd == "stop":
-            self.in_progress = False
-            self._publish_state(STATE_IDLE)
+    def execute(self, userdata):  # noqa: D401
+        if userdata.pose_matched:
+            userdata.score += 1
+            return "good"
+        return "bad"
 
-        elif cmd == "pause":
-            self.in_progress = False
-            self._publish_state(STATE_IDLE)
 
-        # add more verbs (“resume”, “skip”) as needed
+class PublishEmotionState(smach.State):
+    """Publish an Emotion message and pause briefly so the face can animate."""
 
-    def _pose_score_cb(self, msg: PoseScore):
-        if not self.in_progress:
-            return
+    def __init__(self, emotion_val: int, duration: float = 1.5):
+        super().__init__(outcomes=["done"])
+        self._emotion_val = emotion_val
+        self._duration = rospy.Duration(duration)
+        self._pub = rospy.Publisher("/emotion", Emotion, queue_size=1, latch=True)
 
-        if msg.score >= self.success_tol and msg.correct:
-            self._publish_state(STATE_SUCCESS)
-            rospy.sleep(0.5)                                   # brief joy/sad face window
-            self._next_step()
-        else:
-            self._publish_state(STATE_FAILURE)
-            rospy.sleep(1.0)                                   # longer feedback on failure
-            self._next_step()                                  # still advance (or repeat—your choice)
+    def execute(self, _):  # noqa: D401
+        self._pub.publish(Emotion(state=self._emotion_val))
+        rospy.sleep(self._duration)
+        return "done"
 
-    # --------------------------------------------------------------------- #
-    #  Helpers                                                              #
-    # --------------------------------------------------------------------- #
-    def _next_step(self):
-        self.current_step_idx += 1
 
-        if self.current_step_idx >= len(self.game_def.steps):
-            self.current_rep += 1
-            self.current_step_idx = 0
+class NextTurnState(smach.State):
+    """Pick the next gesture and set *Simon says* flag randomly."""
 
-        if self.current_rep >= self.game_def.reps:
-            self.in_progress = False
-            self._publish_state(STATE_FINISHED)
-            rospy.loginfo("🎉  Simon Says session complete!")
-            return
+    def __init__(self, gestures: List[str]):
+        smach.State.__init__(
+            self,
+            outcomes=["continue", "finished"],
+            input_keys=["turn_idx"],
+            output_keys=[
+                "gesture_name",
+                "simon_says",
+                "turn_idx",
+                "pose_matched",
+            ],
+        )
+        self._gestures = gestures
 
-        self._publish_state(STATE_RUNNING)
-        self._dispatch_current_step()
+    def execute(self, userdata):  # noqa: D401
+        userdata.turn_idx += 1
+        if userdata.turn_idx >= len(self._gestures):
+            return "finished"
 
-    def _dispatch_current_step(self):
-        step: StepDef = self.game_def.steps[self.current_step_idx]
-        action        = GameAction()
-        action.header = Header(stamp=rospy.Time.now())
-        action.speech   = step.text
-        action.step_id  = step.id
+        next_gesture = self._gestures[userdata.turn_idx]
+        userdata.gesture_name = next_gesture
+        userdata.simon_says = bool(random.getrandbits(1))
+        userdata.pose_matched = False  # reset flag
+        return "continue"
 
-        # get target(s) from humanoid pose DB
-        try:
-            if step.type == "pose":
-                resp = self.srv_pose(GetPoseIDRequest(id=step.id))
-                action.targets = resp.pose.targets
 
-            elif step.type == "sequence":
-                resp = self.srv_pose_seq(GetPoseSeqIDRequest(id=step.id))
-                # pick the first pose for scoring; send full sequence to robot
-                action.targets = resp.sequence.poses
+# ---------------------------------------------------------------------------
+#  Build the top-level SMACH container
+# ---------------------------------------------------------------------------
 
-            else:
-                rospy.logwarn(f"Unknown step.type='{step.type}', skipping.")
-                self._next_step()
-                return
+def build_game_state_machine(gestures: List[str], turn_timeout: float = 10.0):
+    sm = smach.StateMachine(outcomes=["GAME_OVER"])
 
-            self.pub_action.publish(action)
-            rospy.loginfo(f"[game_runner] Dispatched step {step.id} ({step.text})")
+    # Set initial user‑data
+    sm.userdata.gesture_name = gestures[0]
+    sm.userdata.simon_says = True
+    sm.userdata.turn_idx = 0
+    sm.userdata.score = 0
+    sm.userdata.turn_timeout = turn_timeout
+    sm.userdata.pose_matched = False
 
-        except rospy.ServiceException as e:
-            rospy.logerr(f"Pose lookup failed: {e}")
-            self._publish_state(STATE_FAILURE)
-            self.in_progress = False
+    with sm:
+        # 1 ─ ANNOUNCE (robot action)
+        smach.StateMachine.add(
+            "ANNOUNCE",
+            smach_ros.SimpleActionState(
+                "/simon_cmd",
+                SimonCmdAction,
+                goal_cb=_goal_cb,
+                input_keys=["gesture_name", "simon_says"],
+                output_keys=["executed"],
+                exec_timeout=rospy.Duration(5.0),
+                preempt_timeout=rospy.Duration(1.0),
+            ),
+            transitions={
+                "succeeded": "WAIT_MOVE", 
+                "aborted": "FAIL",
+                "preempted": "FAIL"},
+        )
 
-    def _publish_state(self, s: str):
-        state_msg = GameState()
-        state_msg.state = s
-        self.pub_state.publish(state_msg)
+        # 2 ─ WAIT_MOVE (player imitates)
+        smach.StateMachine.add(
+            "WAIT_MOVE",
+            WaitForPose(),
+            transitions={
+                "matched": "EVALUATE",
+                "timeout": "FAIL",
+                "preempted": "FAIL",
+            },
+        )
 
-    # --------------------------------------------------------------------- #
-    #  Util                                                                 #
-    # --------------------------------------------------------------------- #
-    @staticmethod
-    def _load_game_def(path: str) -> GameDef:
-        """Read YAML → GameDef message."""
-        with open(path, "r") as f:
-            data = yaml.safe_load(f)
+        # 3 ─ EVALUATE (compute score)
+        smach.StateMachine.add(
+            "EVALUATE",
+            EvaluateState(),
+            transitions={"good": "REWARD", "bad": "FAIL"},
+        )
 
-        gd = GameDef()
-        gd.game_type = data.get("game_type", "SIMON_SAYS")
-        gd.reps      = data.get("reps", 1)
-        gd.max_steps = data.get("max_steps", len(data["steps"]))
+        # 4 ─ REWARD
+        smach.StateMachine.add(
+            "REWARD",
+            PublishEmotionState(Emotion.HAPPY),
+            transitions={"done": "NEXT_TURN"},
+        )
 
-        for step_dict in data["steps"]:
-            sd = StepDef()
-            sd.type = step_dict["type"]
-            sd.text = step_dict["text"]
-            sd.id   = int(step_dict["id"])
-            sd.time = float(step_dict.get("time", 0))
-            gd.steps.append(sd)
+        # 5 ─ FAIL
+        smach.StateMachine.add(
+            "FAIL",
+            PublishEmotionState(Emotion.SAD),
+            transitions={"done": "NEXT_TURN"},
+        )
 
-        return gd
+        # 6 ─ NEXT_TURN
+        smach.StateMachine.add(
+            "NEXT_TURN",
+            NextTurnState(gestures),
+            transitions={"continue": "ANNOUNCE", "finished": "GAME_OVER"},
+        )
 
-# ------------------------------------------------------------------------- #
-#  Main                                                                     #
-# ------------------------------------------------------------------------- #
-def main():
+    return sm
+
+
+# ---------------------------------------------------------------------------
+#  SimpleActionState goal callback
+# ---------------------------------------------------------------------------
+
+def _goal_cb(userdata, goal: SimonCmdGoal):  # noqa: D401
+    goal = SimonCmdGoal()
+    goal.gesture_name = userdata.gesture_name
+    goal.simon_says = userdata.simon_says
+    return goal
+
+
+# ---------------------------------------------------------------------------
+#  Main entry point
+# ---------------------------------------------------------------------------
+
+
+def main() -> None:  # noqa: D401
     rospy.init_node("game_runner")
-    GameRunner()
-    rospy.spin()
+
+    # Load gesture list from parameter or fallback to defaults
+    gestures: List[str] = rospy.get_param(
+        "~gestures", [
+            "wave", "arms_up", "dab", "hands_on_head", "swipe_left", "swipe_right"
+        ])
+    timeout_sec: float = rospy.get_param("~turn_timeout", 10.0)
+
+    sm = build_game_state_machine(gestures, timeout_sec)
+
+    # Introspection server wires the machine to smach_viewer
+    sis = smach_ros.IntrospectionServer("game_sm", sm, "/GAME_SM")
+    sis.start()
+
+    rospy.loginfo("[game_runner] ▶▶ Starting Simon Says SMACH executive")
+
+    outcome = sm.execute()
+    rospy.loginfo("[game_runner] Finished with outcome: %s", outcome)
+
+    sis.stop()
+
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except rospy.ROSInterruptException:
+        pass

@@ -1,0 +1,2 @@
+# SimonCmdResult.msg
+bool executed

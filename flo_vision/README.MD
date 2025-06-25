@@ -53,30 +53,59 @@ roscore
 2. Start the USB Camera Node
 
 ```sh
-rosrun usb_cam usb_cam_node _video_device:=/dev/video0 _image_width:=1280 _image_height:=720 _framerate:=30 _pixel_format:=yuyv image_raw:=/usb_cam/image_raw
+rosrun usb_cam usb_cam_node _video_device:=/dev/video0 _image_width:=1280  _image_height:=720 _framerate:=30 _pixel_format:=yuyv image_raw:=/usb_cam/image_raw 
+
 ```
 
-3. Run the Arm & Hand Tracker Node
+3. Run the Arm & Hand Tracker Node (Change the pose by editing _pose:= `<pose_to_detect>`
 
 ```sh
-rosrun flo_vision arm_hand_tracker_node.py _image:=/usb_cam/image_raw _preview:=true
+rosrun flo_vision arm_hand_tracker_node.py _image:=/usb_cam/image_raw _preview:=true _pose:=wave
 ```
 
 - `_image` argument specifies the input image topic (default: `/usb_cam/image_raw`).
 - `_preview` argument enables a GUI preview window (set to `false` to disable).
 
+4. If want to change the pose to detect during the node running, publish the pose to the topic below (e.g. "raise", "wave" or "raise, wave"):
+
+```
+rostopic pub /arm_hand_tracker/pose_command std_msgs/String "data: 'raise, wave'" -1
+```
+
 ### **Option B: Using rosrun on Astra S Camera**
 
-Astra S Camera parameter [here](https://store.orbbec.com/products/astra-s?srsltid=AfmBOoo2ISCxdDyZAGINGOiX-Wj8_nkPNW2mVdd6Mx7xYWaItNm0fXpg)
+If first time using Astra S on this PC:
 
-1. Install the Ubuntu SDK [here](https://www.orbbec.com/developers/astra-sdk/)
-2. Install the
+* Astra S Camera parameter [here](https://store.orbbec.com/products/astra-s?srsltid=AfmBOoo2ISCxdDyZAGINGOiX-Wj8_nkPNW2mVdd6Mx7xYWaItNm0fXpg)
+* Install the Astra Ubuntu SDK [here](https://www.orbbec.com/developers/astra-sdk/) and use the version of **Ubuntu 18.04**
+* Clone the ROS Astra Driver Package and rebuild your catkin workspace
 
+  ```
+  cd ~/catkin_ws/scr
+  git clone https://github.com/orbbec/ros_astra_camera
+  cd ~/catkin_ws_flogamedemo
+  catkin build astra_camera
+  source devel/setup.bash
+  ```
+
+1. Start ROS Core
+
+```sh
+roscore
 ```
-rosrun flo_vision arm_hand_tracker_node.py _image:=/camera/color/image_raw _preview:=true
-```
 
+2. Start the Astra Camera
+
+```sh
 roslaunch astra_camera astra.launch
+```
+
+3. Run the Arm & Hand Tracker Node (Change the pose by editing _pose:= `<pose_to_detect>`
+
+```sh
+rosrun flo_vision arm_hand_tracker_node.py _image:=/camera/color/image_raw _preview:=true _pose:=wave
+```
+
 
 ### **Option C: Using launch file on USB Camera**
 

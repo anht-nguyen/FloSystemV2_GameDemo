@@ -139,7 +139,7 @@ class ArmTracker:
     #                                  Dynamic Pose                                #
     # ---------------------------------------------------------------------------- #
 
-    def is_arm_wave(self, landmarks, image, pose_to_detect):
+    def is_arm_wave(self, landmarks, image):
         # if pose_to_detect != 'all' and pose_to_detect != 'wave':
         #     return
             

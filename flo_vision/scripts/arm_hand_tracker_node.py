@@ -51,7 +51,12 @@ class ArmHandTrackerNode:
         # ---------- ROS housekeeping ----------
         self.bridge = CvBridge()
         self.preview = rospy.get_param("~preview", True)
-        self.pose_to_detect = rospy.get_param("~pose", "all")
+        # self.pose_to_detect = rospy.get_param("~pose", "all")
+        pose_param = rospy.get_param("~pose", "wave")
+        if isinstance(pose_param,str):
+            self.pose_to_detect = [p.strip() for p in pose_param.split(',') if p.strip()]
+        else:
+            self.pose_to_detect = ["wave"]
 
         # Topic names are param‑configurable so the same launch file can be reused
         image_topic = rospy.get_param("~image", "/usb_cam/image_raw")
@@ -87,14 +92,20 @@ class ArmHandTrackerNode:
         """Examine the pose to detect"""
         new_pose = msg.data.strip().lower()
        
-        # 
-        valid_poses = ["all", "wave", "swing_lateral", "swing_forward", "raise", "reaching_side"]
-        if new_pose in valid_poses:
+        pose_list = [p.strip() for p in new_pose.split(',') if p.strip()]
+        valid_poses = ["all", "wave", "swing_lateral", "swing_forward", "raise"]
+        invalid_poses = [p for p in pose_list if p not in valid_poses]
+       
+        if invalid_poses:
+            rospy.logwarn(f"Invalid pose type(s): {invalid_poses}. Valid types: {valid_poses}")
+            return
+       
+        if pose_list:
             old_pose = self.pose_to_detect
-            self.pose_to_detect = new_pose
-            rospy.loginfo(f"Pose detection changed from '{old_pose}' to '{new_pose}'")
+            self.pose_to_detect = pose_list 
+            rospy.loginfo(f"Pose detection changed from '{old_pose}' to '{pose_list}'")
         else:
-            rospy.logwarn(f"Invalid pose type: '{new_pose}'. Valid types: {valid_poses}")
+            rospy.logwarn("Empty pose list received")
 
     def image_callback(self, msg: Image):
         """Main image processing pipeline."""
@@ -162,21 +173,31 @@ class ArmHandTrackerNode:
                 self.pub_right_shldr.publish(r_sh_ang)
 
             # ---------------- Gesture logic ----------------
-            gesture_txt = ""
-            if self.pose_to_detect in ("wave", "all"):
-                self.arm_tracker.is_arm_wave(landmarks, image_bgr, self.pose_to_detect)
-                gesture_txt = "wave"
-            if self.pose_to_detect in ("swing_lateral", "all"):
-                self.arm_tracker.is_arm_swing_lateral(landmarks, image_bgr)
-                gesture_txt = "swing_lateral"
-            if self.pose_to_detect in ("swing_forward", "all"):
-                self.arm_tracker.is_arm_swing_forward(landmarks, image_bgr)
-                gesture_txt = "swing_forward"
-            if self.pose_to_detect in ("raise", "all"):
-                self.arm_tracker.is_arm_raise(landmarks, image_bgr)
-                gesture_txt = "raise"
+            detected_gestures = []
+            # examine if the list contain waving
+            if "wave" in self.pose_to_detect or "all" in self.pose_to_detect:
+                if self.arm_tracker.is_arm_wave(landmarks, image_bgr):
+                    detected_gestures.append("wave")
+           
+            # examine if the list contain swing_lateral
+            if "swing_lateral" in self.pose_to_detect or "all" in self.pose_to_detect:
+                if self.arm_tracker.is_arm_swing_lateral(landmarks, image_bgr):
+                    detected_gestures.append("swing_lateral")
+           
+            # examine if the list contain swing_forward
+            if "swing_forward" in self.pose_to_detect or "all" in self.pose_to_detect:
+                if self.arm_tracker.is_arm_swing_forward(landmarks, image_bgr):
+                    detected_gestures.append("swing_forward")
+           
+            # examine if the list contain raise
+            if "raise" in self.pose_to_detect or "all" in self.pose_to_detect:
+                if self.arm_tracker.is_arm_raise(landmarks, image_bgr):
+                    detected_gestures.append("raise")
 
-            if gesture_txt:
+
+            # publish the gesture
+            if detected_gestures:
+                gesture_txt = ",".join(detected_gestures)
                 self.pub_gesture.publish(gesture_txt)
 
             # Optionally overlay angle values on‑screen

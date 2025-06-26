@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 A simple ROS-integrated GUI for controlling the Simon Says game.
-Provides buttons for Start, Pause, Stop, Quit, a real-time Scoreboard, a Round Timer countdown, and displays prompts.
+Provides buttons for Start, Pause, Stop, Quit, a real-time Scoreboard, a Round Timer countdown, and displays prompts and turn counter.
 """
 import sys
 import rospy
@@ -19,8 +19,9 @@ class SimonGUI(QWidget):
         rospy.Subscriber('/simon_game/prompt', String, self.update_prompt)
         rospy.Subscriber('/simon_game/turn_id', Int32, self.update_turn)
 
-        # Timer setup using turn_timeout parameter
+        # Parameters
         self.turn_timeout = rospy.get_param('~turn_timeout', 4)  # seconds
+        self.total_rounds = rospy.get_param('~total_rounds', 15)
         self.remaining_time = self.turn_timeout
 
         # Build UI and timer
@@ -29,7 +30,7 @@ class SimonGUI(QWidget):
 
     def init_ui(self):
         self.setWindowTitle('Simon Says Control Panel')
-        self.setFixedSize(350, 350)
+        self.setFixedSize(350, 380)
 
         main_layout = QVBoxLayout()
         main_layout.setAlignment(Qt.AlignTop)
@@ -41,7 +42,7 @@ class SimonGUI(QWidget):
         main_layout.addWidget(self.prompt_label)
 
         # Turn counter display
-        self.turn_label = QLabel('Turn: 0/-')
+        self.turn_label = QLabel(f'Turn: 0/{self.total_rounds}')
         self.turn_label.setAlignment(Qt.AlignCenter)
         self.turn_label.setFrameStyle(QFrame.Panel | QFrame.Sunken)
         main_layout.addWidget(self.turn_label)
@@ -82,9 +83,10 @@ class SimonGUI(QWidget):
         self.status_label.setText(f'Status: {cmd.capitalize()}')
 
         if cmd == 'start':
-            # reset timer from turn_timeout
+            # reset timer
             self.remaining_time = self.turn_timeout
             self.timer_label.setText(f'Time: {self.format_time(self.remaining_time)}')
+            self.turn_label.setText(f'Turn: 0/{self.total_rounds}')
             self.gui_timer.start(1000)
         elif cmd == 'pause':
             self.gui_timer.stop()
@@ -92,6 +94,7 @@ class SimonGUI(QWidget):
             self.gui_timer.stop()
             self.remaining_time = self.turn_timeout
             self.timer_label.setText(f'Time: {self.format_time(self.remaining_time)}')
+            self.turn_label.setText(f'Turn: 0/{self.total_rounds}')
         elif cmd == 'quit':
             rospy.signal_shutdown('Quit via GUI')
             QApplication.quit()
@@ -112,8 +115,8 @@ class SimonGUI(QWidget):
         self.prompt_label.setText(f'Prompt: {msg.data}')
 
     def update_turn(self, msg):
-        # You can fetch total_rounds from a param or hardcode—as below we just show idx
-        self.turn_label.setText(f'Turn: {msg.data}')
+        # Display current turn over total rounds
+        self.turn_label.setText(f'Turn: {msg.data}/{self.total_rounds}')
 
     @staticmethod
     def format_time(seconds):

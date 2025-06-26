@@ -1,40 +1,19 @@
 #!/usr/bin/env python3
 """
-FLO‑Core ─ game_runner.py (v4)
+FLO‑Core ─ game_runner.py (v6)
 ==============================
-SMACH executive for a **dual‑arm** Simon‑Says game.
-
-*Every* action in the motion library can now be assigned to *either* arm.  The
-full canonical list (as defined in `action_sequence_controller.Action`) is:
-
-    D_WAVE, D_SWING_LATERAL, D_RAISE, D_SWING_FORWARD,
-    S_RAISE, S_REACH_SIDE,  S_TOUCH_HEAD, S_TOUCH_MOUTH
-
-Defaults for both `~left_actions` and `~right_actions` parameters include **all
-of them**, so the random picker has the same pool on each side.
-
-Goal encoding remains::
-
-    "<ACTION_NAME>_left|<ACTION_NAME>_right"
-
-Dependencies ────────────────────────────────────────────────────────────────
-* flo_msgs/PoseScore.msg
-* flo_msgs/SimonCmd.action
-* flo_msgs/Emotion.msg
-* action_sequence_controller.Action enum
+Integrated with GUI: listens to control commands, publishes live score and prompts.
 """
 from __future__ import annotations
-
 import random
-from typing import List
-
+import threading
 import rospy
 import smach
 import smach_ros
 
+from std_msgs.msg import String, Int32
 from flo_core_defs.msg import PoseScore, Emotion
 from flo_core_defs.msg import SimonCmdAction, SimonCmdGoal
-
 from flo_core.action_sequence_controller import Action
 from flo_core.prompt_utils import build_prompt
 
@@ -49,25 +28,34 @@ def _pick_actions(pool):
         a_right = random.choice(pool)
     return a_left, a_right
 
+def _goal_cb(ud, _):
+    goal = SimonCmdGoal()
+    goal.gesture_name = f"{ud.left_action.name}_left|{ud.right_action.name}_right"
+    goal.simon_says = ud.simon_says
+    return goal
+
 class Announce(smach.State):
-    def __init__(self):
+    def __init__(self, prompt_pub: rospy.Publisher, turn_pub: rospy.Publisher):
         super().__init__(
             outcomes=["succeeded", "aborted"],
-            input_keys=["left_action", "right_action", "simon_says"],
-            output_keys=["left_action", "right_action", "simon_says"], 
+            input_keys=["left_action", "right_action", "simon_says", "turn_idx"],
+            output_keys=["left_action", "right_action", "simon_says", "turn_idx"],
         )
+        self.prompt_pub = prompt_pub
+        self.turn_pub = turn_pub
 
     def execute(self, ud):
         left = ud.left_action.name if ud.left_action else ""
         right = ud.right_action.name if ud.right_action else ""
-        # If both are empty, log and return succeeded to avoid IndexError
         if not left and not right:
-            rospy.logwarn("Announce: Both left_action and right_action are empty!")
+            rospy.logwarn("Announce: both actions empty")
             return "aborted"
+        # Build and publish prompt
         prompt = build_prompt(left, right, ud.simon_says)
-        rospy.loginfo(prompt)
+        rospy.loginfo(f"Prompt: {prompt}")
+        self.prompt_pub.publish(prompt)
+        self.turn_pub.publish(ud.turn_idx)
         return "succeeded"
-
 
 class WaitForPose(smach.State):
     def __init__(self):
@@ -77,7 +65,7 @@ class WaitForPose(smach.State):
             output_keys=["pose_matched"],
         )
         self._latest_match = False
-        self._sub = rospy.Subscriber("/pose_score", PoseScore, self._cb)
+        rospy.Subscriber("/pose_score", PoseScore, self._cb)
 
     def _cb(self, msg: PoseScore):
         if msg.matched:
@@ -101,16 +89,18 @@ class WaitForPose(smach.State):
             rate.sleep()
 
 class EvaluateState(smach.State):
-    def __init__(self):
+    def __init__(self, score_pub: rospy.Publisher):
         super().__init__(
             outcomes=["good", "bad"],
             input_keys=["pose_matched", "score"],
             output_keys=["score"],
         )
+        self.score_pub = score_pub
 
     def execute(self, ud):
         if ud.pose_matched:
             ud.score += 1
+            self.score_pub.publish(ud.score)
             return "good"
         return "bad"
 
@@ -126,184 +116,135 @@ class PublishEmotionState(smach.State):
         return "done"
 
 class NextTurnState(smach.State):
-    """Select the next random pair of actions until `total_rounds` is reached."""
-
-    def __init__(self, action_pool: List[Action]):
+    def __init__(self, action_pool: list[Action]):
         super().__init__(
             outcomes=["continue", "finished"],
             input_keys=["turn_idx", "total_rounds", "left_action", "right_action", "simon_ratio"],
-            output_keys=["left_action", "right_action", "simon_says", "turn_idx"],
+            output_keys=["left_action", "right_action", "simon_says", "turn_idx", "turn_timeout"],
         )
         self._pool = action_pool
 
     def execute(self, ud):
-        # Increment the turn index and check if the game is over
         ud.turn_idx += 1
         if ud.turn_idx > ud.total_rounds:
             return "finished"
-        # Randomly select actions for both arms
-        ud.left_action = random.choice(self._pool)
-        ud.right_action = random.choice(self._pool)
-        # Optionally ensure variety—comment out if duplicates are allowed
-        # while ud.right_action == ud.left_action and len(self._pool) > 1:
-        #     ud.right_action = random.choice(self._pool)
-
+        ud.left_action, ud.right_action = _pick_actions(self._pool)
         ud.simon_says = random.random() < ud.simon_ratio
+        # turn_timeout remains same from userdata
         return "continue"
 
 # ────────────────────────────────────────────────────────────────────────────
 # Build SMACH container
 # ────────────────────────────────────────────────────────────────────────────
 
-def build_sm(action_pool: List[Action], params):
+def build_sm(action_pool: list[Action], params, score_pub, prompt_pub):
     sm = smach.StateMachine(outcomes=["GAME_OVER"])
-
     with sm:
-        # Common user‑data
         sm.userdata.turn_idx = 0
         sm.userdata.score = 0
         sm.userdata.turn_timeout = params["turn_timeout"]
         sm.userdata.total_rounds = params["total_rounds"]
         sm.userdata.simon_ratio = params["simon_ratio"]
         sm.userdata.face_duration = params["face_duration"]
-        # sm.userdata.left_action = action_pool[0]
-        # sm.userdata.right_action = action_pool[0]
         sm.userdata.simon_says = True
         sm.userdata.pose_matched = False
         sm.userdata.left_action, sm.userdata.right_action = _pick_actions(action_pool)
         sm.userdata.simon_says = random.random() < sm.userdata.simon_ratio
+        
+        turn_pub = rospy.Publisher('/simon_game/turn_id', Int32, queue_size=1)
 
-        # 1 ─ ANNOUNCE
         announce_and_cmd = smach.Concurrence(
-            outcomes     = ["succeeded", "aborted", "preempted"],
-            default_outcome = "aborted",
-            outcome_map = {
-                "succeeded": {"TALK":"succeeded", "CMD":"succeeded"},
-                "aborted":   {"CMD":"aborted", "TALK":"aborted"},
-                "preempted": {"CMD":"preempted"},
-            },
-            input_keys=["left_action", "right_action", "simon_says"],
+            outcomes=["succeeded","aborted","preempted"],
+            default_outcome="aborted",
+            outcome_map={"succeeded": {"TALK":"succeeded","CMD":"succeeded"},
+                         "aborted":   {"CMD":"aborted","TALK":"aborted"},
+                         "preempted": {"CMD":"preempted"}},
+            input_keys=["left_action","right_action","simon_says","turn_idx"],
         )
         with announce_and_cmd:
-            smach.Concurrence.add("TALK", Announce())
-            smach.Concurrence.add(
-                "CMD",
+            smach.Concurrence.add("TALK", Announce(prompt_pub, turn_pub),)
+            smach.Concurrence.add("CMD",
                 smach_ros.SimpleActionState(
-                    "/simon_cmd",
-                    SimonCmdAction,
+                    "/simon_cmd", SimonCmdAction,
                     goal_cb=_goal_cb,
-                    input_keys=["left_action", "right_action", "simon_says"],
-                    exec_timeout=rospy.Duration(15.0),
-                ),
+                    input_keys=["left_action","right_action","simon_says"],
+                    exec_timeout=rospy.Duration(15.0)
+                )
             )
-
-        smach.StateMachine.add(
-            "ANNOUNCE",
-            announce_and_cmd,
-            transitions={
-                "succeeded": "WAIT_MOVE",
-                "aborted":   "FAIL",
-                "preempted": "FAIL",
-            },
-        )
-
-        # 2 ─ WAIT_MOVE
-        smach.StateMachine.add(
-            "WAIT_MOVE",
-            WaitForPose(),
-            transitions={"matched": "EVALUATE", "timeout": "FAIL", "preempted": "FAIL"},
-        )
-
-        # 3 ─ EVALUATE
-        smach.StateMachine.add(
-            "EVALUATE",
-            EvaluateState(),
-            transitions={"good": "REWARD", "bad": "FAIL"},
-        )
-
-        # 4 ─ REWARD / 5 ─ FAIL
-        smach.StateMachine.add(
-            "REWARD",
-            PublishEmotionState(Emotion.HAPPY),
-            transitions={"done": "NEXT_TURN"},
-        )
-        smach.StateMachine.add(
-            "FAIL",
-            PublishEmotionState(Emotion.SAD),
-            transitions={"done": "NEXT_TURN"},
-        )
-
-        # 6 ─ NEXT_TURN
-        smach.StateMachine.add(
-            "NEXT_TURN",
-            NextTurnState(action_pool),
-            transitions={"continue": "ANNOUNCE", "finished": "GAME_OVER"},
-        )
-
+        smach.StateMachine.add("ANNOUNCE", announce_and_cmd,
+                               transitions={"succeeded":"WAIT_MOVE","aborted":"FAIL","preempted":"FAIL"})
+        smach.StateMachine.add("WAIT_MOVE", WaitForPose(),
+                               transitions={"matched":"EVALUATE","timeout":"FAIL","preempted":"FAIL"})
+        smach.StateMachine.add("EVALUATE", EvaluateState(score_pub),
+                               transitions={"good":"REWARD","bad":"FAIL"})
+        smach.StateMachine.add("REWARD", PublishEmotionState(Emotion.HAPPY), transitions={"done":"NEXT_TURN"})
+        smach.StateMachine.add("FAIL", PublishEmotionState(Emotion.SAD), transitions={"done":"NEXT_TURN"})
+        smach.StateMachine.add("NEXT_TURN", NextTurnState(action_pool),
+                               transitions={"continue":"ANNOUNCE","finished":"GAME_OVER"})
     return sm
 
 # ────────────────────────────────────────────────────────────────────────────
-# Action goal callback
+# Control Handler
 # ────────────────────────────────────────────────────────────────────────────
 
-def _goal_cb(ud, _):
-    goal = SimonCmdGoal()
-    goal.gesture_name = f"{ud.left_action.name}_left|{ud.right_action.name}_right"
-    goal.simon_says = ud.simon_says
-    return goal
+class GameController:
+    def __init__(self):
+        # Params & action pool
+        default_actions = [a.name for a in Action]
+        left = rospy.get_param("~left_actions", default_actions)
+        right = rospy.get_param("~right_actions", default_actions)
+        pool = {Action[n] for n in left+right if n in Action.__members__}
+        self.action_pool = list(pool)
+
+        self.params = {
+            "turn_timeout": int(rospy.get_param("~turn_timeout", 4.0)),
+            "face_duration": rospy.get_param("~face_duration", 1.2),
+            "simon_ratio": rospy.get_param("~simon_ratio", 0.6),
+            "total_rounds": rospy.get_param("~total_rounds", 15),
+        }
+        # Publishers
+        self.score_pub = rospy.Publisher('/simon_game/score', Int32, queue_size=10)
+        self.prompt_pub = rospy.Publisher('/simon_game/prompt', String, queue_size=1)
+        # Build state machine
+        self.sm = build_sm(self.action_pool, self.params, self.score_pub, self.prompt_pub)
+        # Introspection for viz
+        self.sis = smach_ros.IntrospectionServer("game_sm", self.sm, "/GAME_SM")
+        # Control subscriber
+        self.control_sub = rospy.Subscriber('/simon_game/control', String, self.control_cb)
+        self.running = False
+
+    def control_cb(self, msg: String):
+        cmd = msg.data
+        rospy.loginfo(f"Received control: {cmd}")
+        if cmd == 'start' and not self.running:
+            self.running = True
+            self.sis.start()
+            threading.Thread(target=self.run_game).start()
+        elif cmd == 'pause' and self.running:
+            self.sm.request_preempt()
+        elif cmd == 'stop' and self.running:
+            # Force finish
+            self.sm.userdata.turn_idx = self.params['total_rounds'] + 1
+        elif cmd == 'quit':
+            rospy.signal_shutdown('Quit via GUI')
+
+    def run_game(self):
+        outcome = self.sm.execute()
+        rospy.loginfo(f"Game finished: {outcome}")
+        self.sis.stop()
+        self.running = False
 
 # ────────────────────────────────────────────────────────────────────────────
-# Main
+# Entry point
 # ────────────────────────────────────────────────────────────────────────────
 
 def main():
-    rospy.init_node("game_runner")
+    rospy.init_node('game_runner')
+    controller = GameController()
+    rospy.loginfo('[game_runner] Waiting for Start command...')
+    rospy.spin()
 
-    # Default: full action list for both arms
-    default_actions = [
-        "D_WAVE",
-        "D_SWING_LATERAL",
-        # "D_RAISE",
-        # "D_SWING_FORWARD",
-        "S_RAISE",
-        "S_REACH_SIDE",
-        "S_TOUCH_HEAD",
-        "S_TOUCH_MOUTH",
-    ]
-
-    left_names = rospy.get_param("~left_actions", default_actions)
-    right_names = rospy.get_param("~right_actions", default_actions)
-
-    params = {
-        "turn_timeout": rospy.get_param("~turn_timeout", 4.0),
-        "face_duration": rospy.get_param("~face_duration", 1.2),
-        "simon_ratio": rospy.get_param("~simon_ratio", 0.6),
-        "total_rounds": rospy.get_param("~total_rounds", 15),
-    }
-
-    def to_enum(name: str):
-        try:
-            return Action[name]
-        except KeyError:
-            rospy.logwarn(f"Unknown Action '{name}' – ignored")
-            return None
-
-    # Combine left & right pools (they should be identical by default)
-    pool_set = {a for a in map(to_enum, left_names + right_names) if a}
-    action_pool = list(pool_set)
-
-    assert action_pool, "Action list must not be empty"
-
-    sm = build_sm(action_pool, params)
-
-    sis = smach_ros.IntrospectionServer("game_sm", sm, "/GAME_SM")
-    sis.start()
-    rospy.loginfo("[game_runner] Dual‑arm Simon Says started")
-    outcome = sm.execute()
-    rospy.loginfo("[game_runner] Finished with outcome: %s", outcome)
-    sis.stop()
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     try:
         main()
     except rospy.ROSInterruptException:

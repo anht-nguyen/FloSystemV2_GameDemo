@@ -42,34 +42,48 @@ from flo_core.action_sequence_controller import Action
 # ────────────────────────────────────────────────────────────────────────────
 
 class WaitForPose(smach.State):
-    def __init__(self):
+    def __init__(self, duration = 5.0, threshold = 0.5):
         super().__init__(
             outcomes=["matched", "timeout", "preempted"],
             input_keys=["turn_timeout"],
             output_keys=["pose_matched"],
         )
+        self.duration = duration
+        self.threshold = threshold
+
+        self._total_poses = 0
+        self._matched_poses = 0
         self._latest_match = False
         self._sub = rospy.Subscriber("/pose_score", PoseScore, self._cb)
 
     def _cb(self, msg: PoseScore):
+        self._total_poses +=1
         if msg.matched:
-            self._latest_match = True
+            self._matched_poses += 1
 
     def execute(self, ud):
-        self._latest_match = False
+        self._total_poses = 0
+        self._matched_poses = 0
         start = rospy.Time.now()
         rate = rospy.Rate(30)
+
+
         while not rospy.is_shutdown():
-            if self._latest_match:
-                ud.pose_matched = True
-                return "matched"
-            if (rospy.Time.now() - start).to_sec() > ud.turn_timeout:
-                ud.pose_matched = False
-                return "timeout"
+            # exit if preempt requested
             if self.preempt_requested():
                 self.service_preempt()
                 ud.pose_matched = False
                 return "preempted"
+
+
+            # Check if the time exceed the duraion (defaultly 5 sec)
+            elapsed = (rospy.Time.now() - start).to_sec()
+            if elapsed >= self.duration:
+                ratio = float(self._matched) / max(self._total, 1)
+                ud.pose_matched = (ratio > self.threshold)
+                return "matched" if ud.pose_matched else "timeout"
+
+
             rate.sleep()
 
 class EvaluateState(smach.State):
@@ -161,7 +175,7 @@ def build_sm(action_pool: List[Action], params):
         # 2 ─ WAIT_MOVE
         smach.StateMachine.add(
             "WAIT_MOVE",
-            WaitForPose(),
+            WaitForPose(duraion = 5.0, threshold = 0.5),
             transitions={"matched": "EVALUATE", "timeout": "FAIL", "preempted": "FAIL"},
         )
 

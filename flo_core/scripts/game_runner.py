@@ -36,10 +36,38 @@ from flo_core_defs.msg import PoseScore, Emotion
 from flo_core_defs.msg import SimonCmdAction, SimonCmdGoal
 
 from flo_core.action_sequence_controller import Action
+from flo_core.prompt_utils import build_prompt
 
 # ────────────────────────────────────────────────────────────────────────────
 # Helper states
 # ────────────────────────────────────────────────────────────────────────────
+
+def _pick_actions(pool):
+    a_left = random.choice(pool)
+    a_right = random.choice(pool)
+    while len(pool) > 1 and a_left == a_right:
+        a_right = random.choice(pool)
+    return a_left, a_right
+
+class Announce(smach.State):
+    def __init__(self):
+        super().__init__(
+            outcomes=["succeeded", "aborted"],
+            input_keys=["left_action", "right_action", "simon_says"],
+            output_keys=["left_action", "right_action", "simon_says"], 
+        )
+
+    def execute(self, ud):
+        left = ud.left_action.name if ud.left_action else ""
+        right = ud.right_action.name if ud.right_action else ""
+        # If both are empty, log and return succeeded to avoid IndexError
+        if not left and not right:
+            rospy.logwarn("Announce: Both left_action and right_action are empty!")
+            return "aborted"
+        prompt = build_prompt(left, right, ud.simon_says)
+        rospy.loginfo(prompt)
+        return "succeeded"
+
 
 class WaitForPose(smach.State):
     def __init__(self):
@@ -109,15 +137,16 @@ class NextTurnState(smach.State):
         self._pool = action_pool
 
     def execute(self, ud):
+        # Increment the turn index and check if the game is over
         ud.turn_idx += 1
         if ud.turn_idx > ud.total_rounds:
             return "finished"
-
+        # Randomly select actions for both arms
         ud.left_action = random.choice(self._pool)
         ud.right_action = random.choice(self._pool)
         # Optionally ensure variety—comment out if duplicates are allowed
-        while ud.right_action == ud.left_action and len(self._pool) > 1:
-            ud.right_action = random.choice(self._pool)
+        # while ud.right_action == ud.left_action and len(self._pool) > 1:
+        #     ud.right_action = random.choice(self._pool)
 
         ud.simon_says = random.random() < ud.simon_ratio
         return "continue"
@@ -137,25 +166,45 @@ def build_sm(action_pool: List[Action], params):
         sm.userdata.total_rounds = params["total_rounds"]
         sm.userdata.simon_ratio = params["simon_ratio"]
         sm.userdata.face_duration = params["face_duration"]
-        sm.userdata.left_action = action_pool[0]
-        sm.userdata.right_action = action_pool[0]
+        # sm.userdata.left_action = action_pool[0]
+        # sm.userdata.right_action = action_pool[0]
         sm.userdata.simon_says = True
         sm.userdata.pose_matched = False
+        sm.userdata.left_action, sm.userdata.right_action = _pick_actions(action_pool)
+        sm.userdata.simon_says = random.random() < sm.userdata.simon_ratio
 
         # 1 ─ ANNOUNCE
+        announce_and_cmd = smach.Concurrence(
+            outcomes     = ["succeeded", "aborted", "preempted"],
+            default_outcome = "aborted",
+            outcome_map = {
+                "succeeded": {"TALK":"succeeded", "CMD":"succeeded"},
+                "aborted":   {"CMD":"aborted", "TALK":"aborted"},
+                "preempted": {"CMD":"preempted"},
+            },
+            input_keys=["left_action", "right_action", "simon_says"],
+        )
+        with announce_and_cmd:
+            smach.Concurrence.add("TALK", Announce())
+            smach.Concurrence.add(
+                "CMD",
+                smach_ros.SimpleActionState(
+                    "/simon_cmd",
+                    SimonCmdAction,
+                    goal_cb=_goal_cb,
+                    input_keys=["left_action", "right_action", "simon_says"],
+                    exec_timeout=rospy.Duration(15.0),
+                ),
+            )
+
         smach.StateMachine.add(
             "ANNOUNCE",
-            smach_ros.SimpleActionState(
-                "/simon_cmd",
-                SimonCmdAction,
-                goal_cb=_goal_cb,
-                input_keys=["left_action", "right_action", "simon_says"],
-                exec_timeout=rospy.Duration(10.0),
-            ),
+            announce_and_cmd,
             transitions={
-                "succeeded": "WAIT_MOVE", 
-                "aborted": "FAIL",
-                "preempted": "FAIL",},
+                "succeeded": "WAIT_MOVE",
+                "aborted":   "FAIL",
+                "preempted": "FAIL",
+            },
         )
 
         # 2 ─ WAIT_MOVE

@@ -24,6 +24,6 @@
   <node pkg="flo_core" type="game_runner.py" name="game_runner" output="screen"/>
 
   <!-- Optional: smach viewer for debugging -->
-  <node pkg="smach_viewer" type="smach_viewer.py" name="smach_viewer" />
+  <!-- <node pkg="smach_viewer" type="smach_viewer.py" name="smach_viewer" /> -->
 
 </launch>

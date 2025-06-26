@@ -17,13 +17,15 @@ class Action(IntEnum):
     # … extend with more actions as needed …
 
 class ActionSequenceController:
-    def __init__(self, arm_R, arm_L):
+    def __init__(self, arm_R, arm_L, arm_D=None):
         """
         arm_R: MoveGroupCommander for right arm
         arm_L: MoveGroupCommander for left arm
+        arm_D: MoveGroupCommander for dual arm (if applicable)
         """
         self.arm_R = arm_R
         self.arm_L = arm_L
+        self.arm_D = arm_D
 
         # Map action types to handler methods
         self._action_map = {
@@ -107,3 +109,88 @@ class ActionSequenceController:
 
     def _unknown_action(self, arm=None) -> None:
         rospy.logerr("Unknown action requested; no movement executed.")
+
+
+# --------------------------------------------------
+    # Dual-arm version
+    # --------------------------------------------------
+    def execute_dual_action(
+        self,
+        left_action: Action,
+        right_action: Action,
+        reference_frame: str = "world",
+    ) -> None:
+        """
+        Execute <left_action> on the left arm **simultaneously** with
+        <right_action> on the right arm, by sending a single trajectory
+        to the dual-arm MoveIt group.  Falls back to sequential execution
+        if no dual group was supplied.
+        """
+        if self.arm_D is None:
+            # Fallback – old behaviour (sequential two-thread)
+            self.execute_action(left_action, "left", reference_frame)
+            self.execute_action(right_action, "right", reference_frame)
+            return
+
+        rospy.loginfo(
+            f"Dual action {left_action.name} (L) | {right_action.name} (R)"
+        )
+
+        self._go_home_dual()
+
+        # For now reuse the *single-arm* handlers but merge the named-target
+        # joint dictionaries into a single goal for arm_D.  This keeps the
+        # amount of extra code tiny while guaranteeing simultaneity.
+        self._run_dual_step(left_action, right_action)
+
+        self._go_home_dual()
+
+    # ---------- helpers ----------
+    def _run_dual_step(self, left_action: Action, right_action: Action):
+        """
+        Send the first pose of left_action and right_action together,
+        then, if they are dynamic, repeat their internal cycle 2× more.
+        Uses the existing private single-arm handlers to get named-target
+        strings, merges the joint-value dicts, and calls arm_D.go().
+        """
+        # Step generator for each arm -------------------
+        def _pose_seq(action_enum, arm_name):
+            if action_enum == Action.D_WAVE:
+                return [f"{arm_name}_wave_start", f"{arm_name}_wave_end"] * 3
+            elif action_enum == Action.D_SWING_LATERAL:
+                return [f"{arm_name}_waveb", f"{arm_name}_d_bell"] * 3
+            elif action_enum == Action.S_RAISE:
+                return [f"{arm_name}_raise"]
+            elif action_enum == Action.S_REACH_SIDE:
+                return [f"{arm_name}_reach_side"]
+            elif action_enum == Action.D_RAISE:
+                return [f"{arm_name}_raise", f"{arm_name}_home"] * 3
+            elif action_enum == Action.D_SWING_FORWARD:
+                return [f"{arm_name}_swing_fwd", f"{arm_name}_swing_bwd"] * 3
+            else:  # HOME or unknown → empty
+                return []
+
+        seq_L = _pose_seq(left_action,  "L")
+        seq_R = _pose_seq(right_action, "R")
+
+        # Execute the longest of the two sequences; if one arm finishes early
+        # it just holds its last pose.
+        for idx in range(max(len(seq_L), len(seq_R))):
+            tgt = {}
+            if idx < len(seq_L):
+                tgt.update(self.arm_L.get_named_target_values(seq_L[idx]))
+            if idx < len(seq_R):
+                tgt.update(self.arm_R.get_named_target_values(seq_R[idx]))
+            self.arm_D.set_joint_value_target(tgt)
+            self.arm_D.go()
+
+    def _go_home_dual(self):
+        """Home both arms with one trajectory on the dual group."""
+        if self.arm_D is not None:
+            tgt = {}
+            tgt.update(self.arm_R.get_named_target_values("Rhome"))
+            tgt.update(self.arm_L.get_named_target_values("Lhome"))
+            self.arm_D.set_joint_value_target(tgt)
+            self.arm_D.go()
+        else:
+            self._go_home()  # fall back

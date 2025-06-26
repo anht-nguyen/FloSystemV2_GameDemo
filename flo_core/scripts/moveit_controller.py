@@ -68,7 +68,8 @@ class SimonCmdActionServer:
 
         self.arm_R = moveit_commander.MoveGroupCommander("R")
         self.arm_L = moveit_commander.MoveGroupCommander("L")
-        for grp in (self.arm_R, self.arm_L):
+        self.arm_D = moveit_commander.MoveGroupCommander("dual")  # Dual arm, if applicable
+        for grp in (self.arm_R, self.arm_L, self.arm_D):
             grp.set_pose_reference_frame(self.reference_frame)
             grp.allow_replanning(True)
             grp.set_goal_position_tolerance(0.001)
@@ -76,7 +77,7 @@ class SimonCmdActionServer:
             grp.set_max_acceleration_scaling_factor(0.6)
             grp.set_max_velocity_scaling_factor(0.5)
 
-        self.controller = ActionSequenceController(arm_R=self.arm_R, arm_L=self.arm_L)
+        self.controller = ActionSequenceController(arm_R=self.arm_R, arm_L=self.arm_L, arm_D=self.arm_D)
 
         # Action server
         self._as = actionlib.SimpleActionServer(
@@ -120,38 +121,34 @@ class SimonCmdActionServer:
             self._as.set_aborted(res, text=str(e))
             return
 
-        # Run arms concurrently
-        threads = []
-
-        def _run(act_enum, side):
-            try:
-                self.controller.execute_action(act_enum, side, self.reference_frame)
-            except Exception as exc:
-                rospy.logerr(f"[moveit_controller] Error executing {act_enum}/{side}: {exc}")
-
+        # --------------------------------------------------
+        # 1.  Parse goal → left & right Action enums
+        # --------------------------------------------------
+        left_enum, right_enum = None, None
         for act_enum, side in tokens:
-            t = threading.Thread(target=_run, args=(act_enum, side))
-            t.start()
-            threads.append(t)
+            if side == "left":
+                left_enum = act_enum
+            else:
+                right_enum = act_enum
 
-        # Provide simple feedback while motions run
-        rate = rospy.Rate(10)
-        progress = 0
-        while any(t.is_alive() for t in threads):
-            if self._as.is_preempt_requested():
-                # Best‑effort cancel: stop MoveIt planners
-                for grp in (self.arm_R, self.arm_L):
-                    grp.stop()
-                self._as.set_preempted()
-                return
+        if left_enum is None or right_enum is None:
+            txt = "Gesture string does not contain both left and right tokens"
+            rospy.logerr(txt)
+            self._as.set_aborted(res, text=txt)
+            return
 
-            progress = min(progress + 10, 90)
-            fb.percent_complete = progress
-            self._as.publish_feedback(fb)
-            rate.sleep()
-
-        for t in threads:
-            t.join()
+        # --------------------------------------------------
+        # 2.  Single synchronous call – dual-arm MoveIt group
+        # --------------------------------------------------
+        try:
+            self.controller.execute_dual_action(
+                left_enum, right_enum, self.reference_frame
+            )
+        except Exception as exc:
+            rospy.logerr(f"[moveit_controller] Dual-action failed: {exc}")
+            self._as.set_aborted(res, text=str(exc))
+            return
+        rospy.loginfo("[moveit_controller] Dual action executed successfully.")
 
         fb.percent_complete = 100
         self._as.publish_feedback(fb)

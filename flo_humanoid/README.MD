@@ -18,6 +18,10 @@
 - ROS (Melodic/Noetic or compatible)
 - Standard ROS message packages
 - Other packages in `FloSystemV2_GameDemo`
+- Dynamixel SDK
+    ```sh
+    sudo apt install ros-noetic-dynamixel-sdk ros-noetic-controller-manager ros-noetic-joint-state-controller ros-noetic-joint-state-publisher ros-noetic-robot-state-publisher ros-noetic-message-generation ros-noetic-message-runtime
+    ```
 
 
 ---
@@ -105,7 +109,7 @@ flo_humanoid/
      ```
 
 3. **Communication**:  
-   - The `read_write_arms_node` subscribes to the `/set_arms_joint_positions` topic, which is published by `dualPosition.py` from the `movewithhead` package.  
+   - The `read_write_arms_node` subscribes to the `/set_arms_joint_positions` topic, which is published by `dualPosition.py` from the `flo_core` package.  
    - Data format for motor positions is defined in the `GetArmsJointPositions.srv` service.
 
 ---

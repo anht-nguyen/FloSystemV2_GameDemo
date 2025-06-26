@@ -24,7 +24,6 @@ __pycache__/
 Thumbs.db
 
 # ROS launch/config logs
-*.launch.*
 *.log
 
 # Misc

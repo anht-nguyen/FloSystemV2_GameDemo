@@ -84,6 +84,68 @@ class ArmHandTrackerNode:
                                          max_num_hands=2)
 
         rospy.loginfo("arm_hand_tracker_node initialised – awaiting images…")
+    def calculate_action_similarity(self, detected_gestures, required_gestures):
+        """
+        计算动作相似度
+        Args:
+            detected_gestures: 检测到的动作列表
+            required_gestures: 要求的动作列表
+        Returns:
+            similarity: 相似度 (0.0, 0.5, 1.0)
+            matched: 是否匹配 (bool)
+        """
+        if not required_gestures:
+            return 0.0, False
+           
+    
+        left_hand_actions = [g for g in required_gestures if 'left' in g or g in ['d_wave_left']]
+        right_hand_actions = [g for g in required_gestures if 'right' in g or g in ['d_wave_right']]
+        general_actions = [g for g in required_gestures if g not in left_hand_actions and g not in right_hand_actions]
+       
+        # if only one required gesture
+        if len(required_gestures) == 1 and not left_hand_actions and not right_hand_actions:
+            if required_gestures[0] in detected_gestures:
+                return 1.0, True
+            else:
+                return 0.0, False
+               
+        # if two gestures
+        if len(required_gestures) == 2 or (left_hand_actions and right_hand_actions):
+            left_detected = any(action in detected_gestures for action in left_hand_actions)
+            right_detected = any(action in detected_gestures for action in right_hand_actions)
+            general_detected = any(action in detected_gestures for action in general_actions)
+           
+            total_parts = len(left_hand_actions) + len(right_hand_actions) + len(general_actions)
+            detected_parts = 0
+           
+            if left_hand_actions and left_detected:
+                detected_parts += 1
+            if right_hand_actions and right_detected:
+                detected_parts += 1
+            if general_actions and general_detected:
+                detected_parts += 1
+               
+            if detected_parts == total_parts:
+                return 1.0, True
+            elif detected_parts > 0:
+                return 0.5, False
+            else:
+                return 0.0, False
+               
+        
+        all_detected = all(action in detected_gestures for action in required_gestures)
+        if all_detected:
+            return 1.0, True
+        elif any(action in detected_gestures for action in required_gestures):
+            return 0.5, False
+        else:
+            return 0.0, False
+
+
+
+
+
+
 
     # ======================================================================
     #                            CALLBACK

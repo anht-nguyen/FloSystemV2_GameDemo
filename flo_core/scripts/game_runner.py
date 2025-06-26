@@ -1,211 +1,183 @@
 #!/usr/bin/env python3
 """
-FLO‑Core ─ game_runner.py
-========================
-Executive state‑machine that coordinates a responsive “Simon Says” game.
+FLO‑Core ─ game_runner.py (v4)
+==============================
+SMACH executive for a **dual‑arm** Simon‑Says game.
 
-*   Publishes/consumes only high‑level ROS APIs – it does **not** touch
-    low‑level hardware or vision code directly.
-*   Built with **SMACH** so that behaviour can be visualised live in
-    *smach_viewer* and unit‑tested in isolation.
-*   Compatible with ROS Noetic (Python 3).
+*Every* action in the motion library can now be assigned to *either* arm.  The
+full canonical list (as defined in `action_sequence_controller.Action`) is:
 
-Topics & actions
-----------------
-/pose_score            (flo_msgs/PoseScore)        – vision result
-events
-/simon_cmd             (flo_msgs/SimonCmdAction)   – robot gesture
-/emotion               (flo_msgs/Emotion)          – face display
+    D_WAVE, D_SWING_LATERAL, D_RAISE, D_SWING_FORWARD,
+    S_RAISE, S_REACH_SIDE,  S_TOUCH_HEAD, S_TOUCH_MOUTH
 
-Custom userdata keys
---------------------
-gesture_name : str     – YAML key for next gesture
-simon_says   : bool    – whether the prompt includes “Simon says”
-turn_idx     : int     – running counter for statistics
-score        : int     – accumulated player score
-turn_timeout : float   – seconds allowed to respond each turn
-pose_matched : bool    – result latched from vision layer
+Defaults for both `~left_actions` and `~right_actions` parameters include **all
+of them**, so the random picker has the same pool on each side.
+
+Goal encoding remains::
+
+    "<ACTION_NAME>_left|<ACTION_NAME>_right"
+
+Dependencies ────────────────────────────────────────────────────────────────
+* flo_msgs/PoseScore.msg
+* flo_msgs/SimonCmd.action
+* flo_msgs/Emotion.msg
+* action_sequence_controller.Action enum
 """
-
 from __future__ import annotations
 
 import random
-from typing import List, Dict
+from typing import List
 
 import rospy
 import smach
 import smach_ros
-from std_msgs.msg import Header
 
-# FLO custom interfaces
 from flo_core_defs.msg import PoseScore, Emotion
 from flo_core_defs.msg import SimonCmdAction, SimonCmdGoal
 
+from flo_core.action_sequence_controller import Action
 
-# ---------------------------------------------------------------------------
-#  Simple helper states
-# ---------------------------------------------------------------------------
+# ────────────────────────────────────────────────────────────────────────────
+# Helper states
+# ────────────────────────────────────────────────────────────────────────────
+
 class WaitForPose(smach.State):
-    """State that waits until the player matches the target pose *or* times out."""
-
     def __init__(self):
-        smach.State.__init__(
-            self,
+        super().__init__(
             outcomes=["matched", "timeout", "preempted"],
             input_keys=["turn_timeout"],
             output_keys=["pose_matched"],
         )
-        self._pose_sub = rospy.Subscriber("/pose_score", PoseScore, self._pose_cb)
         self._latest_match = False
+        self._sub = rospy.Subscriber("/pose_score", PoseScore, self._cb)
 
-    # --------------------------------------------------
-    def _pose_cb(self, msg: PoseScore):  # noqa: D401
-        """Latched callback; only considers *True* events."""
+    def _cb(self, msg: PoseScore):
         if msg.matched:
             self._latest_match = True
 
-    # --------------------------------------------------
-    def execute(self, userdata):  # noqa: D401
+    def execute(self, ud):
         self._latest_match = False
         start = rospy.Time.now()
         rate = rospy.Rate(30)
-
         while not rospy.is_shutdown():
             if self._latest_match:
-                userdata.pose_matched = True
+                ud.pose_matched = True
                 return "matched"
-            if (rospy.Time.now() - start).to_sec() > userdata.turn_timeout:
-                userdata.pose_matched = False
+            if (rospy.Time.now() - start).to_sec() > ud.turn_timeout:
+                ud.pose_matched = False
                 return "timeout"
             if self.preempt_requested():
                 self.service_preempt()
-                userdata.pose_matched = False
+                ud.pose_matched = False
                 return "preempted"
             rate.sleep()
 
-
 class EvaluateState(smach.State):
-    """Assign *good* or *bad* outcome based on WaitForPose result."""
-
     def __init__(self):
-        smach.State.__init__(
-            self,
+        super().__init__(
             outcomes=["good", "bad"],
             input_keys=["pose_matched", "score"],
             output_keys=["score"],
         )
 
-    def execute(self, userdata):  # noqa: D401
-        if userdata.pose_matched:
-            userdata.score += 1
+    def execute(self, ud):
+        if ud.pose_matched:
+            ud.score += 1
             return "good"
         return "bad"
 
-
 class PublishEmotionState(smach.State):
-    """Publish an Emotion message and pause briefly so the face can animate."""
-
-    def __init__(self, emotion_val: int, duration: float = 1.5):
-        super().__init__(outcomes=["done"])
-        self._emotion_val = emotion_val
-        self._duration = rospy.Duration(duration)
+    def __init__(self, emotion_val: int):
+        super().__init__(outcomes=["done"], input_keys=["face_duration"])
+        self._val = emotion_val
         self._pub = rospy.Publisher("/emotion", Emotion, queue_size=1, latch=True)
 
-    def execute(self, _):  # noqa: D401
-        self._pub.publish(Emotion(state=self._emotion_val))
-        rospy.sleep(self._duration)
+    def execute(self, ud):
+        self._pub.publish(Emotion(state=self._val))
+        rospy.sleep(rospy.Duration(ud.face_duration))
         return "done"
 
-
 class NextTurnState(smach.State):
-    """Pick the next gesture and set *Simon says* flag randomly."""
+    """Select the next random pair of actions until `total_rounds` is reached."""
 
-    def __init__(self, gestures: List[str]):
-        smach.State.__init__(
-            self,
+    def __init__(self, action_pool: List[Action]):
+        super().__init__(
             outcomes=["continue", "finished"],
-            input_keys=["turn_idx"],
-            output_keys=[
-                "gesture_name",
-                "simon_says",
-                "turn_idx",
-                "pose_matched",
-            ],
+            input_keys=["turn_idx", "total_rounds", "left_action", "right_action", "simon_ratio"],
+            output_keys=["left_action", "right_action", "simon_says", "turn_idx"],
         )
-        self._gestures = gestures
+        self._pool = action_pool
 
-    def execute(self, userdata):  # noqa: D401
-        userdata.turn_idx += 1
-        if userdata.turn_idx >= len(self._gestures):
+    def execute(self, ud):
+        ud.turn_idx += 1
+        if ud.turn_idx > ud.total_rounds:
             return "finished"
 
-        next_gesture = self._gestures[userdata.turn_idx]
-        userdata.gesture_name = next_gesture
-        userdata.simon_says = bool(random.getrandbits(1))
-        userdata.pose_matched = False  # reset flag
+        ud.left_action = random.choice(self._pool)
+        ud.right_action = random.choice(self._pool)
+        # Optionally ensure variety—comment out if duplicates are allowed
+        while ud.right_action == ud.left_action and len(self._pool) > 1:
+            ud.right_action = random.choice(self._pool)
+
+        ud.simon_says = random.random() < ud.simon_ratio
         return "continue"
 
+# ────────────────────────────────────────────────────────────────────────────
+# Build SMACH container
+# ────────────────────────────────────────────────────────────────────────────
 
-# ---------------------------------------------------------------------------
-#  Build the top-level SMACH container
-# ---------------------------------------------------------------------------
-
-def build_game_state_machine(gestures: List[str], turn_timeout: float = 10.0):
+def build_sm(action_pool: List[Action], params):
     sm = smach.StateMachine(outcomes=["GAME_OVER"])
 
-    # Set initial user‑data
-    sm.userdata.gesture_name = gestures[0]
-    sm.userdata.simon_says = True
-    sm.userdata.turn_idx = 0
-    sm.userdata.score = 0
-    sm.userdata.turn_timeout = turn_timeout
-    sm.userdata.pose_matched = False
-
     with sm:
-        # 1 ─ ANNOUNCE (robot action)
+        # Common user‑data
+        sm.userdata.turn_idx = 0
+        sm.userdata.score = 0
+        sm.userdata.turn_timeout = params["turn_timeout"]
+        sm.userdata.total_rounds = params["total_rounds"]
+        sm.userdata.simon_ratio = params["simon_ratio"]
+        sm.userdata.face_duration = params["face_duration"]
+        sm.userdata.left_action = action_pool[0]
+        sm.userdata.right_action = action_pool[0]
+        sm.userdata.simon_says = True
+        sm.userdata.pose_matched = False
+
+        # 1 ─ ANNOUNCE
         smach.StateMachine.add(
             "ANNOUNCE",
             smach_ros.SimpleActionState(
                 "/simon_cmd",
                 SimonCmdAction,
                 goal_cb=_goal_cb,
-                input_keys=["gesture_name", "simon_says"],
-                output_keys=["executed"],
-                exec_timeout=rospy.Duration(5.0),
-                preempt_timeout=rospy.Duration(1.0),
+                input_keys=["left_action", "right_action", "simon_says"],
+                exec_timeout=rospy.Duration(10.0),
             ),
             transitions={
                 "succeeded": "WAIT_MOVE", 
                 "aborted": "FAIL",
-                "preempted": "FAIL"},
+                "preempted": "FAIL",},
         )
 
-        # 2 ─ WAIT_MOVE (player imitates)
+        # 2 ─ WAIT_MOVE
         smach.StateMachine.add(
             "WAIT_MOVE",
             WaitForPose(),
-            transitions={
-                "matched": "EVALUATE",
-                "timeout": "FAIL",
-                "preempted": "FAIL",
-            },
+            transitions={"matched": "EVALUATE", "timeout": "FAIL", "preempted": "FAIL"},
         )
 
-        # 3 ─ EVALUATE (compute score)
+        # 3 ─ EVALUATE
         smach.StateMachine.add(
             "EVALUATE",
             EvaluateState(),
             transitions={"good": "REWARD", "bad": "FAIL"},
         )
 
-        # 4 ─ REWARD
+        # 4 ─ REWARD / 5 ─ FAIL
         smach.StateMachine.add(
             "REWARD",
             PublishEmotionState(Emotion.HAPPY),
             transitions={"done": "NEXT_TURN"},
         )
-
-        # 5 ─ FAIL
         smach.StateMachine.add(
             "FAIL",
             PublishEmotionState(Emotion.SAD),
@@ -215,52 +187,72 @@ def build_game_state_machine(gestures: List[str], turn_timeout: float = 10.0):
         # 6 ─ NEXT_TURN
         smach.StateMachine.add(
             "NEXT_TURN",
-            NextTurnState(gestures),
+            NextTurnState(action_pool),
             transitions={"continue": "ANNOUNCE", "finished": "GAME_OVER"},
         )
 
     return sm
 
+# ────────────────────────────────────────────────────────────────────────────
+# Action goal callback
+# ────────────────────────────────────────────────────────────────────────────
 
-# ---------------------------------------------------------------------------
-#  SimpleActionState goal callback
-# ---------------------------------------------------------------------------
-
-def _goal_cb(userdata, goal: SimonCmdGoal):  # noqa: D401
+def _goal_cb(ud, _):
     goal = SimonCmdGoal()
-    goal.gesture_name = userdata.gesture_name
-    goal.simon_says = userdata.simon_says
+    goal.gesture_name = f"{ud.left_action.name}_left|{ud.right_action.name}_right"
+    goal.simon_says = ud.simon_says
     return goal
 
+# ────────────────────────────────────────────────────────────────────────────
+# Main
+# ────────────────────────────────────────────────────────────────────────────
 
-# ---------------------------------------------------------------------------
-#  Main entry point
-# ---------------------------------------------------------------------------
-
-
-def main() -> None:  # noqa: D401
+def main():
     rospy.init_node("game_runner")
 
-    # Load gesture list from parameter or fallback to defaults
-    gestures: List[str] = rospy.get_param(
-        "~gestures", [
-            "wave", "arms_up", "dab", "hands_on_head", "swipe_left", "swipe_right"
-        ])
-    timeout_sec: float = rospy.get_param("~turn_timeout", 10.0)
+    # Default: full action list for both arms
+    default_actions = [
+        "D_WAVE",
+        "D_SWING_LATERAL",
+        # "D_RAISE",
+        # "D_SWING_FORWARD",
+        "S_RAISE",
+        "S_REACH_SIDE",
+        "S_TOUCH_HEAD",
+        "S_TOUCH_MOUTH",
+    ]
 
-    sm = build_game_state_machine(gestures, timeout_sec)
+    left_names = rospy.get_param("~left_actions", default_actions)
+    right_names = rospy.get_param("~right_actions", default_actions)
 
-    # Introspection server wires the machine to smach_viewer
+    params = {
+        "turn_timeout": rospy.get_param("~turn_timeout", 4.0),
+        "face_duration": rospy.get_param("~face_duration", 1.2),
+        "simon_ratio": rospy.get_param("~simon_ratio", 0.6),
+        "total_rounds": rospy.get_param("~total_rounds", 15),
+    }
+
+    def to_enum(name: str):
+        try:
+            return Action[name]
+        except KeyError:
+            rospy.logwarn(f"Unknown Action '{name}' – ignored")
+            return None
+
+    # Combine left & right pools (they should be identical by default)
+    pool_set = {a for a in map(to_enum, left_names + right_names) if a}
+    action_pool = list(pool_set)
+
+    assert action_pool, "Action list must not be empty"
+
+    sm = build_sm(action_pool, params)
+
     sis = smach_ros.IntrospectionServer("game_sm", sm, "/GAME_SM")
     sis.start()
-
-    rospy.loginfo("[game_runner] ▶▶ Starting Simon Says SMACH executive")
-
+    rospy.loginfo("[game_runner] Dual‑arm Simon Says started")
     outcome = sm.execute()
     rospy.loginfo("[game_runner] Finished with outcome: %s", outcome)
-
     sis.stop()
-
 
 if __name__ == "__main__":
     try:

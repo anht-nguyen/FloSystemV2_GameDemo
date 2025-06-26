@@ -2,12 +2,12 @@
 # High-level gesture request sent from game_runner to the Dynamixel action
 # server.  Using an action lets the executive pre-empt motions mid-stream.
 
-# -------- Goal  ------------------------------------------------------------
+# -------- Goal  ---------------------
 string  gesture_name      # key that the servo driver looks up in its motion DB
 bool    simon_says        # true => player must imitate; false => “gotcha” turn
 ---
-# -------- Result -----------------------------------------------------------
-bool    executed          # true if the motor sequence completed without error
+# -------- Result ----------------------
+bool    success          # true if the motor sequence completed without error
 ---
-# -------- Feedback ---------------------------------------------------------
+# -------- Feedback ----------------------
 float32 percent_complete  # 0–100   progress inside the current gesture

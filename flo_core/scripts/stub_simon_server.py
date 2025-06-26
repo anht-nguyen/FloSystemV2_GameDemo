@@ -7,7 +7,7 @@ def execute_cb(goal):
     rospy.loginfo('Stub motor: executing gesture %s (says=%s)',
                   goal.gesture_name, goal.simon_says)
     time.sleep(0.5)
-    server.set_succeeded(SimonCmdResult(executed=True))
+    server.set_succeeded(SimonCmdResult(success=True))
 
 rospy.init_node('simon_stub_server')
 server = actionlib.SimpleActionServer('/simon_cmd',

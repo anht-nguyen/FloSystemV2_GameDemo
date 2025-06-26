@@ -1,2 +1,2 @@
 # SimonCmdResult.msg
-bool executed
+bool success

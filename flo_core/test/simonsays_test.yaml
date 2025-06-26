@@ -1,0 +1,6 @@
+game_type: SIMON_SAYS
+reps: 2
+steps:
+  - {id: 1, text: "Simon says touch your head", type: pose}
+  - {id: 2, text: "Simon says raise your left arm", type: pose}
+  - {id: 99, text: "Raise your right arm", type: pose}         # no 'Simon says' – tests inhibition

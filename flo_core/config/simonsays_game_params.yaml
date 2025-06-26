@@ -1,0 +1,18 @@
+# Simon Says – parameter set (all actions allowed for both arms)
+
+left_actions:  &all_actions
+  - D_WAVE
+  - D_SWING_LATERAL
+  # - D_RAISE
+  # - D_SWING_FORWARD
+  - S_RAISE
+  # - S_REACH_SIDE
+  # - S_TOUCH_HEAD
+  # - S_TOUCH_MOUTH
+
+right_actions: *all_actions   # clone the same list
+
+turn_timeout:          4.0        # seconds for player to copy the pose
+face_duration:         1.2        # seconds robot shows happy/sad face
+simon_ratio:           0.6        # 60 % of prompts include “Simon says”
+total_rounds:          15         # stop after 15 dual-arm turns

@@ -1,0 +1,11 @@
+<!-- test_simonsays.launch -->
+<launch>
+  <!-- message/action definitions must already be built & sourced -->
+  <node pkg="flo_core" type="stub_simon_server.py" name="stub_server"/>
+  <node pkg="flo_core" type="stub_pose_publisher.py" name="stub_pose"/>
+  <node pkg="flo_core" type="game_runner.py" name="game_runner">
+    <rosparam file="$(find flo_core)/config/simonsays_game_params.yaml" command="load"/> 
+  </node>
+  <!-- smach viewer (optional) -->
+  <node pkg="smach_viewer" type="smach_viewer.py" name="viewer"/>
+</launch>

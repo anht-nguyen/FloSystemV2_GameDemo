@@ -305,15 +305,20 @@ class ArmTracker:
             right_shoulder, right_elbow, right_wrist, right_elbow_angle, right_shoulder_angle = self.get_arm_info(landmarks, 'left')
             
             # Check if the elbow is raised
-            if left_shoulder is not None or right_shoulder is not None:
-                if left_elbow_angle > 165 and left_shoulder_angle > 165 and self.is_arm_up(left_elbow, left_wrist):
-                    cv2.putText(image, 'Left arm raised', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-                if right_elbow_angle > 165 and right_shoulder_angle > 165 and self.is_arm_up(right_elbow, right_wrist):
-                    cv2.putText(image, 'Right arm raised', (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-
-            
+            if left_shoulder is None or right_shoulder is None:
+                return False
+            if left_elbow_angle > 165 and left_shoulder_angle > 165 and self.is_arm_up(left_elbow, left_wrist):
+                cv2.putText(image, 'Left arm raised', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                left_raised = True
+            if right_elbow_angle > 165 and right_shoulder_angle > 165 and self.is_arm_up(right_elbow, right_wrist):
+                cv2.putText(image, 'Right arm raised', (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                right_raised = True
+            if left_raised and right_raised:
+                return True
+                     
         except:
-            pass 
+            pass
+        return False
 
     
     # ---------------------------------------------------------------------------- #

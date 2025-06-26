@@ -22,7 +22,7 @@ class ArmTracker:
         self.right_side_reaching_counter = 0
         
         # Tracking parameters
-        self.history_length = 15
+        self.history_length = 10
         self.angle_threshold = 80
         self.shoulder_angle_threshold = 60
         self.wrist_depth_threshold = 0.8
@@ -139,7 +139,7 @@ class ArmTracker:
     #                                  Dynamic Pose                                #
     # ---------------------------------------------------------------------------- #
 
-    def is_arm_wave(self, landmarks, image, pose_to_detect):
+    def is_arm_wave(self, landmarks, image):
         # if pose_to_detect != 'all' and pose_to_detect != 'wave':
         #     return
             
@@ -170,6 +170,46 @@ class ArmTracker:
                 cv2.putText(image, 'Right arm waving', (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
         except:
             pass
+
+    def is_left_arm_wave(self, landmarks, image):
+        try:
+            left_shoulder, left_elbow, left_wrist, left_angle, _ = self.get_arm_info(landmarks, 'right')
+            
+            if left_shoulder is None :
+                return False
+            
+            if self.is_arm_up(left_elbow, left_wrist):
+                self.left_angle_history.append(left_angle)
+                if len(self.left_angle_history) > self.history_length:
+                    self.left_angle_history.pop(0)
+
+            # Check if the arm is waving
+            if len(self.left_angle_history) == self.history_length and max(self.left_angle_history) - min(self.left_angle_history) > self.angle_threshold:
+                cv2.putText(image, 'Left arm waving', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                return True
+        except:
+            pass
+        return False
+    
+    def is_right_arm_wave(self, landmarks, image):
+        try:
+            right_shoulder, right_elbow, right_wrist, right_angle, _ = self.get_arm_info(landmarks, 'left')
+            if right_shoulder is None:
+                return False
+            
+            if self.is_arm_up(right_elbow, right_wrist):
+                self.right_angle_history.append(right_angle)
+                if len(self.right_angle_history) > self.history_length:
+                    self.right_angle_history.pop(0)
+
+            # Check if the arm is waving
+            if len(self.right_angle_history) == self.history_length and max(self.right_angle_history) - min(self.right_angle_history) > self.angle_threshold:
+                cv2.putText(image, 'Right arm waving', (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                return True
+        except:
+            pass
+        return False
+
 
     def is_arm_swing_lateral(self, landmarks, image):
 

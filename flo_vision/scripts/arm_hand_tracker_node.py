@@ -51,7 +51,12 @@ class ArmHandTrackerNode:
         # ---------- ROS housekeeping ----------
         self.bridge = CvBridge()
         self.preview = rospy.get_param("~preview", True)
-        self.pose_to_detect = rospy.get_param("~pose", "all")
+        # self.pose_to_detect = rospy.get_param("~pose", "all")
+        pose_param = rospy.get_param("~pose", "wave")
+        if isinstance(pose_param,str):
+            self.pose_to_detect = [p.strip() for p in pose_param.split(',') if p.strip()]
+        else:
+            self.pose_to_detect = ["wave"]
 
         # Topic names are param‑configurable so the same launch file can be reused
         image_topic = rospy.get_param("~image", "/usb_cam/image_raw")
@@ -67,7 +72,7 @@ class ArmHandTrackerNode:
 
         # Subscriber
         rospy.Subscriber(image_topic, Image, self.image_callback, queue_size=1, buff_size=2 ** 24)
-
+        rospy.Subscriber("~pose_command",String, self.pose_command_callback, queue_size= 1)
         # --------- MediaPipe initialisation ----------
         self.arm_tracker = ArmTracker()
         self.mp_pose = mp.solutions.pose
@@ -79,10 +84,91 @@ class ArmHandTrackerNode:
                                          max_num_hands=2)
 
         rospy.loginfo("arm_hand_tracker_node initialised – awaiting images…")
+    def calculate_action_similarity(self, detected_gestures, required_gestures):
+        """
+        计算动作相似度
+        Args:
+            detected_gestures: 检测到的动作列表
+            required_gestures: 要求的动作列表
+        Returns:
+            similarity: 相似度 (0.0, 0.5, 1.0)
+            matched: 是否匹配 (bool)
+        """
+        if not required_gestures:
+            return 0.0, False
+           
+    
+        left_hand_actions = [g for g in required_gestures if 'left' in g or g in ['d_wave_left']]
+        right_hand_actions = [g for g in required_gestures if 'right' in g or g in ['d_wave_right']]
+        general_actions = [g for g in required_gestures if g not in left_hand_actions and g not in right_hand_actions]
+       
+        # if only one required gesture
+        if len(required_gestures) == 1 and not left_hand_actions and not right_hand_actions:
+            if required_gestures[0] in detected_gestures:
+                return 1.0, True
+            else:
+                return 0.0, False
+               
+        # if two gestures
+        if len(required_gestures) == 2 or (left_hand_actions and right_hand_actions):
+            left_detected = any(action in detected_gestures for action in left_hand_actions)
+            right_detected = any(action in detected_gestures for action in right_hand_actions)
+            general_detected = any(action in detected_gestures for action in general_actions)
+           
+            total_parts = len(left_hand_actions) + len(right_hand_actions) + len(general_actions)
+            detected_parts = 0
+           
+            if left_hand_actions and left_detected:
+                detected_parts += 1
+            if right_hand_actions and right_detected:
+                detected_parts += 1
+            if general_actions and general_detected:
+                detected_parts += 1
+               
+            if detected_parts == total_parts:
+                return 1.0, True
+            elif detected_parts > 0:
+                return 0.5, False
+            else:
+                return 0.0, False
+               
+        
+        all_detected = all(action in detected_gestures for action in required_gestures)
+        if all_detected:
+            return 1.0, True
+        elif any(action in detected_gestures for action in required_gestures):
+            return 0.5, False
+        else:
+            return 0.0, False
+
+
+
+
+
+
 
     # ======================================================================
     #                            CALLBACK
     # ======================================================================
+    def pose_command_callback(self, msg: String):
+        """Examine the pose to detect"""
+        new_pose = msg.data.strip().lower()
+       
+        pose_list = [p.strip() for p in new_pose.split(',') if p.strip()]
+        valid_poses = ["all", "wave", "swing_lateral", "swing_forward", "raise", "d_wave_left", "d_wave_right"]
+        invalid_poses = [p for p in pose_list if p not in valid_poses]
+       
+        if invalid_poses:
+            rospy.logwarn(f"Invalid pose type(s): {invalid_poses}. Valid types: {valid_poses}")
+            return
+       
+        if pose_list:
+            old_pose = self.pose_to_detect
+            self.pose_to_detect = pose_list 
+            rospy.loginfo(f"Pose detection changed from '{old_pose}' to '{pose_list}'")
+        else:
+            rospy.logwarn("Empty pose list received")
+
     def image_callback(self, msg: Image):
         """Main image processing pipeline."""
         try:
@@ -97,6 +183,8 @@ class ArmHandTrackerNode:
         if not hasattr(self, "_notified"):
             rospy.loginfo(f"[Tracker] first frame sum = {frame.sum()}")
             self._notified = True
+        
+        frame = cv2.flip(frame, 1)
 
         # ----- MediaPipe inference -----
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -147,21 +235,38 @@ class ArmHandTrackerNode:
                 self.pub_right_shldr.publish(r_sh_ang)
 
             # ---------------- Gesture logic ----------------
-            gesture_txt = ""
-            if self.pose_to_detect in ("wave", "all"):
-                self.arm_tracker.is_arm_wave(landmarks, image_bgr, self.pose_to_detect)
-                gesture_txt = "wave"
-            if self.pose_to_detect in ("swing_lateral", "all"):
-                self.arm_tracker.is_arm_swing_lateral(landmarks, image_bgr)
-                gesture_txt = "swing_lateral"
-            if self.pose_to_detect in ("swing_forward", "all"):
-                self.arm_tracker.is_arm_swing_forward(landmarks, image_bgr)
-                gesture_txt = "swing_forward"
-            if self.pose_to_detect in ("raise", "all"):
-                self.arm_tracker.is_arm_raise(landmarks, image_bgr)
-                gesture_txt = "raise"
+            detected_gestures = []
+            # examine if the list contain waving
+            if "wave" in self.pose_to_detect or "all" in self.pose_to_detect:
+                if self.arm_tracker.is_arm_wave(landmarks, image_bgr):
+                    detected_gestures.append("wave")
+           
+            # examine if the list contain swing_lateral
+            if "swing_lateral" in self.pose_to_detect or "all" in self.pose_to_detect:
+                if self.arm_tracker.is_arm_swing_lateral(landmarks, image_bgr):
+                    detected_gestures.append("swing_lateral")
+           
+            # examine if the list contain swing_forward
+            if "swing_forward" in self.pose_to_detect or "all" in self.pose_to_detect:
+                if self.arm_tracker.is_arm_swing_forward(landmarks, image_bgr):
+                    detected_gestures.append("swing_forward")
+           
+            # examine if the list contain raise
+            if "raise" in self.pose_to_detect or "all" in self.pose_to_detect:
+                if self.arm_tracker.is_arm_raise(landmarks, image_bgr):
+                    detected_gestures.append("raise")
+                
+            if "d_wave_left" in self.pose_to_detect or "all" in self.pose_to_detect:
+                if self.arm_tracker.is_left_arm_wave(landmarks, image_bgr):
+                    detected_gestures.append("d_wave_left")
+            
+            if "d_wave_right" in self.pose_to_detect or "all" in self.pose_to_detect:
+                if self.arm_tracker.is_right_arm_wave(landmarks, image_bgr):
+                    detected_gestures.append("d_wave_right")
 
-            if gesture_txt:
+            # publish the gesture
+            if detected_gestures:
+                gesture_txt = ",".join(detected_gestures)
                 self.pub_gesture.publish(gesture_txt)
 
             # Optionally overlay angle values on‑screen

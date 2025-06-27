@@ -14,6 +14,7 @@ Publishes
   ~left_shoulder_angle     (std_msgs/Float32)
   ~right_shoulder_angle    (std_msgs/Float32)
   ~gesture                 (std_msgs/String)    – detected high‑level action
+  ~PoseScore               (flo_msgs/PoseScore)
 
 ROS Parameters (private, ~namespace)
 ------------------------------------
@@ -26,7 +27,8 @@ Author: 2025, FLO Robot project
 
 import rospy
 from sensor_msgs.msg import Image
-from std_msgs.msg import Float32, String
+from std_msgs.msg import Float32, String, Header
+from flo_core_defs.msg import PoseScore
 from cv_bridge import CvBridge, CvBridgeError
 import cv2
 import numpy as np
@@ -69,7 +71,7 @@ class ArmHandTrackerNode:
         self.pub_left_shldr = rospy.Publisher("~left_shoulder_angle", Float32, queue_size=10)
         self.pub_right_shldr = rospy.Publisher("~right_shoulder_angle", Float32, queue_size=10)
         self.pub_gesture = rospy.Publisher("~gesture", String, queue_size=10)
-
+        self.pub_posescore = rospy.Publisher("~pose_score", PoseScore, queue_size=10)
         # Subscriber
         rospy.Subscriber(image_topic, Image, self.image_callback, queue_size=1, buff_size=2 ** 24)
         rospy.Subscriber("~pose_command",String, self.pose_command_callback, queue_size= 1)
@@ -85,15 +87,6 @@ class ArmHandTrackerNode:
 
         rospy.loginfo("arm_hand_tracker_node initialised – awaiting images…")
     def calculate_action_similarity(self, detected_gestures, required_gestures):
-        """
-        计算动作相似度
-        Args:
-            detected_gestures: 检测到的动作列表
-            required_gestures: 要求的动作列表
-        Returns:
-            similarity: 相似度 (0.0, 0.5, 1.0)
-            matched: 是否匹配 (bool)
-        """
         if not required_gestures:
             return 0.0, False
            
@@ -140,11 +133,6 @@ class ArmHandTrackerNode:
             return 0.5, False
         else:
             return 0.0, False
-
-
-
-
-
 
 
     # ======================================================================
@@ -268,14 +256,24 @@ class ArmHandTrackerNode:
             if detected_gestures:
                 gesture_txt = ",".join(detected_gestures)
                 self.pub_gesture.publish(gesture_txt)
+            
+            similarity, matched = self.calculate_action_similarity(detected_gestures, self.pose_to_detect)
 
+            pose_score = PoseScore()
+            pose_score.header = Header()
+            pose_score.header.stamp = msg.header.stamp if hasattr(msg,  'header') else rospy.Time.now()
+            pose_score.header.frame_id = "camera_frame"
+            pose_score.matched = matched
+            pose_score.similarity = similarity
+            
+            self.pub_posescore.publish(pose_score)
             # Optionally overlay angle values on‑screen
             if self.preview and l_sh is not None and r_sh is not None:
                 cv2.putText(image_bgr, f"{int(l_el_ang)}", (int(l_el[0] * w), int(l_el[1] * h)),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
                 cv2.putText(image_bgr, f"{int(r_el_ang)}", (int(r_el[0] * w), int(r_el[1] * h)),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-
+                
         # ------------------------------------------------------------------
         #                  OPTIONAL GUI WINDOW
         # ------------------------------------------------------------------

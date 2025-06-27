@@ -99,35 +99,78 @@ class Announce(smach.State):
         self.turn_pub.publish(ud.turn_idx)
         return "succeeded"
 
+# class WaitForPose(smach.State):
+#     def __init__(self):
+#         super().__init__(
+#             outcomes=["matched", "timeout", "preempted"],
+#             input_keys=["turn_timeout"],
+#             output_keys=["pose_matched"],
+#         )
+#         self._latest_match = False
+#         rospy.Subscriber("/arm_pose_score", PoseScore, self._cb)
+
+#     def _cb(self, msg: PoseScore):
+#         if msg.matched:
+#             self._latest_match = True
+
+#     def execute(self, ud):
+#         self._latest_match = False
+#         start = rospy.Time.now()
+#         rate = rospy.Rate(30)
+#         while not rospy.is_shutdown():
+#             if self._latest_match:
+#                 ud.pose_matched = True
+#                 return "matched"
+#             if (rospy.Time.now() - start).to_sec() > ud.turn_timeout:
+#                 ud.pose_matched = False
+#                 return "timeout"
+#             if self.preempt_requested():
+#                 self.service_preempt()
+#                 ud.pose_matched = False
+#                 return "preempted"
+#             rate.sleep()
+
+
 class WaitForPose(smach.State):
     def __init__(self):
         super().__init__(
             outcomes=["matched", "timeout", "preempted"],
-            input_keys=["turn_timeout"],
+            input_keys=["turn_timeout", "success_threshold"],
             output_keys=["pose_matched"],
         )
+
+        self._total_poses = 0
+        self._matched_poses = 0
         self._latest_match = False
-        rospy.Subscriber("/pose_score", PoseScore, self._cb)
+        self._sub = rospy.Subscriber("/arm_hand_tracker/pose_score", PoseScore, self._cb)
 
     def _cb(self, msg: PoseScore):
+        self._total_poses +=1
         if msg.matched:
-            self._latest_match = True
+            self._matched_poses += 1
 
     def execute(self, ud):
-        self._latest_match = False
+        self._total_poses = 0
+        self._matched_poses = 0
         start = rospy.Time.now()
         rate = rospy.Rate(30)
+
+
         while not rospy.is_shutdown():
-            if self._latest_match:
-                ud.pose_matched = True
-                return "matched"
-            if (rospy.Time.now() - start).to_sec() > ud.turn_timeout:
-                ud.pose_matched = False
-                return "timeout"
+            # exit if preempt requested
             if self.preempt_requested():
                 self.service_preempt()
                 ud.pose_matched = False
                 return "preempted"
+
+
+            # Check if the time exceed the duraion (defaultly 5 sec)
+            elapsed = (rospy.Time.now() - start).to_sec()
+            if elapsed >= ud.turn_timeout:
+                ratio = float(self._matched_poses) / max(self._total_poses, 1)
+                matched = (ratio > ud.success_threshold)
+                ud.pose_matched = matched
+                return "matched" if matched else "timeout"
             rate.sleep()
 
 class EvaluateState(smach.State):
@@ -232,6 +275,7 @@ def build_sm(sequence: list[tuple[Action,Action,bool]], params, score_pub, promp
         sm.userdata.total_rounds = params["total_rounds"]
         sm.userdata.simon_ratio = params["simon_ratio"]
         sm.userdata.face_duration = params["face_duration"]
+        sm.userdata.success_threshold = params["success_threshold"]
         sm.userdata.pose_matched = False
         # seed the first turn from our sequence
         first_l, first_r, first_s = sequence[0]
@@ -282,9 +326,10 @@ def build_sm(sequence: list[tuple[Action,Action,bool]], params, score_pub, promp
                 "preempted": {"POSE":"preempted"},
                 "aborted": {"TALK":"aborted", "CMD":"aborted"}
             },
-            input_keys=["left_action", "right_action", "simon_says", "turn_idx", "turn_timeout"],
+            input_keys=["left_action", "right_action", "simon_says", "turn_idx", "turn_timeout", "success_threshold","pose_matched"],
             output_keys=["pose_matched"],
-            child_termination_cb=lambda so: True  # terminate all when any completes
+            # child_termination_cb=lambda so: True  # terminate all when any completes
+            child_termination_cb=lambda outcome_map:outcome_map.get("POSE") in ("matched","timeout")
         )
 
         with announce_cmd_and_detect:
@@ -368,6 +413,7 @@ class GameController:
             "face_duration": rospy.get_param("~face_duration", 1.2),
             "simon_ratio": rospy.get_param("~simon_ratio", 0.6),
             "total_rounds": rospy.get_param("~total_rounds", 15),
+            "success_threshold": rospy.get_param("~threshold", 0.5)
         }
 
         # ── status publisher so GUI can enable “Start” when we’re ready ──

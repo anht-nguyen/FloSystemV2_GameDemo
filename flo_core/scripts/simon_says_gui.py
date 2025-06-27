@@ -7,17 +7,20 @@ faithfully mirrors the state / event flow defined below. All GUI element
 properties (enabled / disabled states, timers, counters) are updated through
 state‑entry callbacks rather than ad‑hoc logic sprinkled across the code.
 
-| State       | Event             | Action                                                              | Next State |
-|-------------|-------------------|---------------------------------------------------------------------|------------|
-| Idle        | Start clicked     | Publish 'start'; clear intro_done; show rules                       | Intro      |
-| Intro       | Prompt received   | Display rules; enable Continue/Restart buttons                      | Intro_Wait |
-| Intro_Wait  | Continue clicked  | Publish 'continue'; reset timer; start game                         | InGame     |
-| InGame      | Prompt received   | Display action prompts; update turn/timer                           | InGame     |
-| InGame      | Pause clicked     | Publish 'pause'; pause game                                         | Paused     |
-| InGame      | Stop  clicked     | Publish 'stop'; end game                                            | Idle       |
-| Paused      | Continue clicked  | Publish 'continue'; resume timer/game                               | InGame     |
-| Any         | Quit  clicked     | Publish 'quit'; close GUI                                           | Terminated |
-| Any         | Restart clicked   | Publish 'restart'; restart entire game; enable Start button         | Idle       |
+| State        | Event (button)   | Action published to /simon_game/control | Next GUI State |
+|--------------|------------------|-----------------------------------------|----------------|
+| Idle         | Start            | start ‒ reset intro flags, show rules   | Intro          |
+| Intro        | Prompt received  | ‒ display rules; enable Continue/Stop   | Intro_Wait     |
+| Intro_Wait   | Continue         | continue ‒ begin countdown & game loop  | InGame         |
+| Intro_Wait   | Stop             | stop ‒ abort intro                      | GameOver       |
+| InGame       | Prompt received  | ‒ update action prompt / turn / timer   | InGame         |
+| InGame       | Pause            | pause ‒ freeze game & timer             | Paused         |
+| InGame       | Stop             | stop ‒ terminate game                   | GameOver       |
+| Paused       | Continue         | continue ‒ resume game & timer          | InGame         |
+| Paused       | Stop             | stop ‒ abandon game                     | GameOver       |
+| GameOver     | Restart          | restart ‒ full reset; re-enable Start   | Idle           |
+| Any state    | Quit             | quit ‒ shutdown GUI & ROS node          | Terminated     |
+
 """
 from __future__ import annotations
 
@@ -44,6 +47,7 @@ class GameState(str, Enum):
     INTRO_WAIT = "Intro_Wait"
     IN_GAME = "InGame"
     PAUSED = "Paused"
+    GAME_OVER = "GameOver"
     TERMINATED = "Terminated"
 
 
@@ -177,6 +181,7 @@ class SimonGUI(QWidget):
         self.s_intro_wait = QState()
         self.s_in_game = QState()
         self.s_paused = QState()
+        self.s_game_over = QState()
         self.s_terminated = QState()
 
         self.machine.addState(self.s_idle)
@@ -184,6 +189,7 @@ class SimonGUI(QWidget):
         self.machine.addState(self.s_intro_wait)
         self.machine.addState(self.s_in_game)
         self.machine.addState(self.s_paused)
+        self.machine.addState(self.s_game_over)
         self.machine.addState(self.s_terminated)
         self.machine.setInitialState(self.s_idle)
 
@@ -193,18 +199,22 @@ class SimonGUI(QWidget):
         self.s_intro.addTransition(self.rulesReceived, self.s_intro_wait)
 
         self.s_intro_wait.addTransition(self.continueClicked, self.s_in_game)
-        self.s_intro_wait.addTransition(self.restartClicked, self.s_idle)
+        self.s_intro_wait.addTransition(self.stopClicked, self.s_game_over)
 
         self.s_in_game.addTransition(self.pauseClicked, self.s_paused)
-        self.s_in_game.addTransition(self.stopClicked, self.s_idle)
-        self.s_in_game.addTransition(self.restartClicked, self.s_idle)
+        self.s_in_game.addTransition(self.stopClicked, self.s_game_over) # Stop ⇒ Game Over
+        self.s_in_game.addTransition(self.quitClicked, self.s_terminated)
+        # self.s_in_game.addTransition(self.restartClicked, self.s_idle)
 
         self.s_paused.addTransition(self.continueClicked, self.s_in_game)
-        self.s_paused.addTransition(self.stopClicked, self.s_idle)
-        self.s_paused.addTransition(self.restartClicked, self.s_idle)
+        self.s_paused.addTransition(self.stopClicked, self.s_game_over)
+        # self.s_paused.addTransition(self.restartClicked, self.s_idle)
+
+        # Game Over ⇒ Restart ⇒ Idle
+        self.s_game_over.addTransition(self.restartClicked, self.s_idle)
 
         # global transitions ---------------------------------------------------
-        for st in (self.s_idle, self.s_intro, self.s_intro_wait, self.s_in_game, self.s_paused):
+        for st in (self.s_idle, self.s_intro, self.s_intro_wait, self.s_in_game, self.s_paused, self.s_game_over):
             st.addTransition(self.quitClicked, self.s_terminated)
 
         # ── state‑entry callbacks --------------------------------------------
@@ -213,6 +223,7 @@ class SimonGUI(QWidget):
         self.s_intro_wait.entered.connect(lambda: self._on_enter_state(GameState.INTRO_WAIT))
         self.s_in_game.entered.connect(lambda: self._on_enter_state(GameState.IN_GAME))
         self.s_paused.entered.connect(lambda: self._on_enter_state(GameState.PAUSED))
+        self.s_game_over.entered.connect(lambda: self._on_enter_state(GameState.GAME_OVER)) 
         self.s_terminated.entered.connect(lambda: self._on_enter_state(GameState.TERMINATED))
 
         self.machine.start()
@@ -262,6 +273,11 @@ class SimonGUI(QWidget):
             self.ready_for_start = False
             # clear GUI after stop/restart
             self.lbl_prompt.setText("Prompt: –")
+        elif new_state == GameState.GAME_OVER:
+            # Stop countdown, keep the last score/turn visible
+            self.ticker.stop()
+            self.remaining_time = self.turn_timeout
+            self.lbl_timer.setText(self._fmt_time(self.remaining_time))
 
         self._update_buttons()
 
@@ -309,6 +325,7 @@ class SimonGUI(QWidget):
 
 
     def _update_buttons(self):
+        # Enable/disable buttons based on current state -------------------
         # disable all first ---------------------------------------------------
         for b in (
             self.btn_start,
@@ -327,14 +344,17 @@ class SimonGUI(QWidget):
             pass  # waiting for rules
         elif st == GameState.INTRO_WAIT:
             self.btn_continue.setEnabled(True)
-            self.btn_restart.setEnabled(True)
+            self.btn_stop.setEnabled(True)
+            # self.btn_restart.setEnabled(True)
         elif st == GameState.IN_GAME:
             self.btn_pause.setEnabled(True)
             self.btn_stop.setEnabled(True)
-            self.btn_restart.setEnabled(True)
+            # self.btn_restart.setEnabled(True)
         elif st == GameState.PAUSED:
             self.btn_continue.setEnabled(True)
             self.btn_stop.setEnabled(True)
+            # self.btn_restart.setEnabled(True)
+        elif st == GameState.GAME_OVER:          # ← NEW
             self.btn_restart.setEnabled(True)
 
         # Quit always enabled -------------------------------------------------

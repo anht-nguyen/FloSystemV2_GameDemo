@@ -328,6 +328,11 @@ class GameController:
                     rospy.loginfo("[INTRO] Restart received → reset intro")
                     self.intro_in_progress = False
                     self._last_intro_cmd = None
+                    # ── tell GUI everything is reset ───────────────────────
+                    self.score_pub.publish(0)                          # scoreboard → 0
+                    rospy.Publisher('/simon_game/turn_id', Int32,
+                                    queue_size=1, latch=True).publish(0)
+                    self.status_pub.publish("Waiting for Start command..")
                     return
                 r.sleep()
         finally:

@@ -179,12 +179,51 @@ class NextTurnFromSequence(smach.State):
         ud.simon_says   = s
         return "continue"
 
+class PauseWaitState(smach.State):
+    """
+    Waits for the game to be paused, then waits for a resume command.
+    """
+    def __init__(self, controller: GameController):
+        super().__init__(outcomes=["resumed"])
+        self.controller = controller
+
+    def execute(self, ud):
+        rospy.loginfo("[PAUSE] Game paused. Waiting for resume...")
+        rate = rospy.Rate(10)
+        while not rospy.is_shutdown():
+            if self.controller.resume_pending:
+                self.controller.resume_pending = False
+                self.controller.pause_pending = False
+                rospy.loginfo("[PAUSE] Resuming game.")
+                return "resumed"
+            rate.sleep()
+
+
+class PauseAfterEvaluateState(smach.State):
+    def __init__(self, controller: GameController):
+        super().__init__(outcomes=["good", "bad"],
+                         input_keys=["eval_outcome"])
+        self.controller = controller
+
+    def execute(self, ud):
+        rospy.loginfo("[PAUSE] Game paused after EVALUATE. Waiting to resume...")
+        rate = rospy.Rate(10)
+        while not rospy.is_shutdown():
+            if self.controller.resume_pending:
+                self.controller.resume_pending = False
+                self.controller.pause_pending = False
+                rospy.loginfo(f"[PAUSE] Resuming. Routing to outcome: {ud.eval_outcome}")
+                return ud.eval_outcome
+            rate.sleep()
+
+
+
 
 # ────────────────────────────────────────────────────────────────────────────
 # Build SMACH container
 # ────────────────────────────────────────────────────────────────────────────
 
-def build_sm(sequence: list[tuple[Action,Action,bool]], params, score_pub, prompt_pub):
+def build_sm(sequence: list[tuple[Action,Action,bool]], params, score_pub, prompt_pub, controller: GameController):
     sm = smach.StateMachine(outcomes=["GAME_OVER"])
     with sm:
         sm.userdata.turn_idx = 0
@@ -201,6 +240,9 @@ def build_sm(sequence: list[tuple[Action,Action,bool]], params, score_pub, promp
         sm.userdata.simon_says    = first_s
         
         turn_pub = rospy.Publisher('/simon_game/turn_id', Int32, queue_size=1)
+
+        # Create PauseWaitState instance
+        pause_state = PauseWaitState(controller)
 
         announce_and_cmd = smach.Concurrence(
             outcomes=["succeeded","aborted","preempted"],
@@ -222,17 +264,58 @@ def build_sm(sequence: list[tuple[Action,Action,bool]], params, score_pub, promp
             )
         smach.StateMachine.add("ANNOUNCE", announce_and_cmd,
                                transitions={"succeeded":"WAIT_MOVE","aborted":"FAIL","preempted":"FAIL"})
-        smach.StateMachine.add("WAIT_MOVE", WaitForPose(),
+        class WaitForPoseWithPause(WaitForPose):
+            def execute(self, ud):
+                outcome = super().execute(ud)
+                if outcome == "matched" and controller.pause_pending:
+                    return "PAUSE_AFTER_WAIT"
+                return outcome
+            
+        smach.StateMachine.add("WAIT_MOVE", WaitForPoseWithPause(),
                                transitions={"matched":"EVALUATE","timeout":"FAIL","preempted":"FAIL"})
-        smach.StateMachine.add("EVALUATE", EvaluateState(score_pub),
+        # Pause after WAIT_MOVE
+        smach.StateMachine.add("PAUSE_AFTER_WAIT", pause_state,
+                            transitions={"resumed": "EVALUATE"})
+        
+        class EvaluateStateWithPause(EvaluateState):
+            def execute(self, ud):
+                result = super().execute(ud)
+                ud.eval_outcome = result  # ← record it
+                if result == "good" and controller.pause_pending:
+                    return "PAUSE_AFTER_EVAL"
+                return result
+
+        smach.StateMachine.add("EVALUATE", EvaluateStateWithPause(score_pub),
                                transitions={"good":"REWARD","bad":"FAIL"})
+
+        # Pause after EVALUATE
+        smach.StateMachine.add("PAUSE_AFTER_EVAL", PauseAfterEvaluateState(controller),
+                                transitions={"good": "REWARD", "bad": "FAIL"})
+
         smach.StateMachine.add("REWARD", PublishEmotionState(Emotion.HAPPY), transitions={"done":"NEXT_TURN"})
         smach.StateMachine.add("FAIL", PublishEmotionState(Emotion.SAD), transitions={"done":"NEXT_TURN"})
-        smach.StateMachine.add(
-            "NEXT_TURN",
-            NextTurnFromSequence(sequence),
-            transitions={"continue":"ANNOUNCE","finished":"GAME_OVER"}
-        )
+
+        class NextTurnWithPause(NextTurnFromSequence):
+            def __init__(self, sequence):
+                super().__init__(sequence)
+                self._outcomes = ["continue", "finished", "PAUSE_AFTER_NEXT"]
+
+            def execute(self, ud):
+                result = super().execute(ud)
+                if result == "continue" and controller.pause_pending:
+                    return "PAUSE_AFTER_NEXT"
+                return result
+
+        # NextTurnWithPause state
+        smach.StateMachine.add("NEXT_TURN", NextTurnWithPause(sequence),
+            transitions={"continue": "ANNOUNCE", 
+                        "finished": "GAME_OVER",
+                        "PAUSE_AFTER_NEXT": "PAUSE_AFTER_NEXT"})
+        # Pause after NEXT_TURN
+        smach.StateMachine.add("PAUSE_AFTER_NEXT", pause_state,
+                            transitions={"resumed": "ANNOUNCE"})
+    
+
     return sm
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -278,7 +361,7 @@ class GameController:
         self.score_pub = rospy.Publisher('/simon_game/score', Int32, queue_size=10)
         self.prompt_pub = rospy.Publisher('/simon_game/prompt', String, queue_size=1)
         # Build state machine, passing in our fixed sequence
-        self.sm = build_sm(self.sequence, self.params, self.score_pub, self.prompt_pub)
+        self.sm = build_sm(self.sequence, self.params, self.score_pub, self.prompt_pub, self)
         # Introspection for viz
         self.sis = smach_ros.IntrospectionServer("game_sm", self.sm, "/GAME_SM")
         # Control subscriber
@@ -287,6 +370,9 @@ class GameController:
         # state for intro handshake
         self.intro_done = False
         self._last_intro_cmd = None
+        # Flags for pause/resume 
+        self.pause_pending = False
+        self.resume_pending = False
         # intro-thread state flags
         self.intro_in_progress = False
         # action-client for intro waving
@@ -361,10 +447,15 @@ class GameController:
             self.sis.start()
             self.game_thread = threading.Thread(target=self.run_game, daemon=True)
             self.game_thread.start()
+        # Pause/Resume controls
         elif cmd == 'pause' and self.running:
+            self.pause_pending = True
             self.sm.request_preempt()
+        elif cmd == 'continue':
+            self.resume_pending = True
+            self.pause_pending = False
+        # Force finish
         elif cmd == 'stop' and self.running:
-            # Force finish
             self.sm.userdata.turn_idx = self.params['total_rounds'] + 1
         elif cmd == 'restart':
             rospy.loginfo("[game_runner] Restart requested – terminating current game")

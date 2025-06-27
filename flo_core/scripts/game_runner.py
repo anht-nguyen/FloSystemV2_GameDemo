@@ -19,12 +19,24 @@ from flo_core.prompt_utils import build_prompt
 from actionlib import SimpleActionClient
 
 RULES_TEXT = (
-    "Welcome to Dual-Arm Simon Says!\n"
     "Rules:\n"
     "  1) Robot will announce two arm actions.\n"
     "  2) If it says ‘Simon says’, you do them. Otherwise, you stay still.\n"
     "Click Continue when you’re ready, or Restart to hear these again."
 )
+
+
+WELCOME_SPEECH = (
+    "Welcome to Simon Says game with Flo robot!\n")
+
+RULES_SPEECH = """
+    in simon says, I will tell you something to do and show you how to do it, mirrored.
+    If I say simon says, you should do it with me.
+    If I do not say simon says, you should not do the action.
+    Watch out, I may try to trick you.
+    After every movement return to a ready position.
+    Are you ready to play?
+    """
 
 # ────────────────────────────────────────────────────────────────────────────
 # Helper states

@@ -531,7 +531,7 @@ class GameController:
                 self.sequence.append((l, r, s))
 
             self.sm = build_sm(
-                self.sequence, self.params, self.score_pub, self.prompt_pub
+                self.sequence, self.params, self.score_pub, self.prompt_pub, self
             )
 
             # 5) Fresh introspection server bound to the new SM

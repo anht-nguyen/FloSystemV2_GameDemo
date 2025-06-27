@@ -113,7 +113,6 @@ class Announce(smach.State):
         prompt = build_prompt(left, right, ud.simon_says)
         rospy.loginfo(f"Prompt: {prompt}")
         self.prompt_pub.publish(prompt)
-        self.prompt_pub.publish(prompt)
         # Speak the prompt using Amazon Polly
         self.tts_client.speak(prompt)
         # Publish the turn index

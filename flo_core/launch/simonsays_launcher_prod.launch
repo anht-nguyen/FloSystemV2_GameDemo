@@ -24,6 +24,13 @@
   <node pkg="flo_core" type="game_runner.py" name="game_runner" output="screen"/>
 
   <!-- Optional: smach viewer for debugging -->
-  <node pkg="smach_viewer" type="smach_viewer.py" name="smach_viewer" />
+  <!-- <node pkg="smach_viewer" type="smach_viewer.py" name="smach_viewer" /> -->
+
+  <!-- ──────────────────────────────────────────────────────────────────
+       Simon-Says GUI
+       ────────────────────────────────────────────────────────────────── -->
+  <!-- This GUI is used to display the Simon-Says game state and actions -->
+  <node pkg="flo_core" type="simon_says_gui.py" name="simon_gui" output="screen"/>
+
 
 </launch>

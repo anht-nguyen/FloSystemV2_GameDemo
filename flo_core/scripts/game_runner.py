@@ -244,26 +244,6 @@ def build_sm(sequence: list[tuple[Action,Action,bool]], params, score_pub, promp
         # Create PauseWaitState instance
         pause_state = PauseWaitState(controller)
 
-        announce_and_cmd = smach.Concurrence(
-            outcomes=["succeeded","aborted","preempted"],
-            default_outcome="aborted",
-            outcome_map={"succeeded": {"TALK":"succeeded","CMD":"succeeded"},
-                         "aborted":   {"CMD":"aborted","TALK":"aborted"},
-                         "preempted": {"CMD":"preempted"}},
-            input_keys=["left_action","right_action","simon_says","turn_idx"],
-        )
-        with announce_and_cmd:
-            smach.Concurrence.add("TALK", Announce(prompt_pub, turn_pub),)
-            smach.Concurrence.add("CMD",
-                smach_ros.SimpleActionState(
-                    "/simon_cmd", SimonCmdAction,
-                    goal_cb=_goal_cb,
-                    input_keys=["left_action","right_action","simon_says"],
-                    exec_timeout=rospy.Duration(15.0)
-                )
-            )
-        smach.StateMachine.add("ANNOUNCE", announce_and_cmd,
-                               transitions={"succeeded":"WAIT_MOVE","aborted":"FAIL","preempted":"FAIL"})
         class WaitForPoseWithPause(WaitForPose):
             def execute(self, ud):
                 outcome = super().execute(ud)
@@ -271,8 +251,60 @@ def build_sm(sequence: list[tuple[Action,Action,bool]], params, score_pub, promp
                     return "PAUSE_AFTER_WAIT"
                 return outcome
             
-        smach.StateMachine.add("WAIT_MOVE", WaitForPoseWithPause(),
-                               transitions={"matched":"EVALUATE","timeout":"FAIL","preempted":"FAIL"})
+        # announce_and_cmd = smach.Concurrence(
+        #     outcomes=["succeeded","aborted","preempted"],
+        #     default_outcome="aborted",
+        #     outcome_map={"succeeded": {"TALK":"succeeded","CMD":"succeeded"},
+        #                  "aborted":   {"CMD":"aborted","TALK":"aborted"},
+        #                  "preempted": {"CMD":"preempted"}},
+        #     input_keys=["left_action","right_action","simon_says","turn_idx"],
+        # )
+        # with announce_and_cmd:
+        #     smach.Concurrence.add("TALK", Announce(prompt_pub, turn_pub),)
+        #     smach.Concurrence.add("CMD",
+        #         smach_ros.SimpleActionState(
+        #             "/simon_cmd", SimonCmdAction,
+        #             goal_cb=_goal_cb,
+        #             input_keys=["left_action","right_action","simon_says"],
+        #             exec_timeout=rospy.Duration(15.0)
+        #         )
+        #     )
+
+        # smach.StateMachine.add("WAIT_MOVE", WaitForPoseWithPause(),
+        #                        transitions={"matched":"EVALUATE","timeout":"FAIL","preempted":"FAIL"})
+
+        announce_cmd_and_detect = smach.Concurrence(
+            outcomes=["matched", "timeout", "preempted", "aborted"],
+            default_outcome="timeout",
+            outcome_map={
+                "matched": {"POSE":"matched"},
+                "timeout": {"POSE":"timeout"},
+                "preempted": {"POSE":"preempted"},
+                "aborted": {"TALK":"aborted", "CMD":"aborted"}
+            },
+            input_keys=["left_action", "right_action", "simon_says", "turn_idx", "turn_timeout"],
+            output_keys=["pose_matched"],
+            child_termination_cb=lambda so: True  # terminate all when any completes
+        )
+
+        with announce_cmd_and_detect:
+            smach.Concurrence.add("TALK", Announce(prompt_pub, turn_pub))
+            smach.Concurrence.add("CMD", smach_ros.SimpleActionState(
+                "/simon_cmd", SimonCmdAction,
+                goal_cb=_goal_cb,
+                input_keys=["left_action", "right_action", "simon_says"],
+                exec_timeout=rospy.Duration(15.0)
+            ))
+            smach.Concurrence.add("POSE", WaitForPoseWithPause())
+
+        smach.StateMachine.add("ANNOUNCE", announce_cmd_and_detect,
+            transitions={
+                "matched": "EVALUATE",
+                "timeout": "FAIL",
+                "preempted": "FAIL",
+                "aborted": "FAIL"
+            })
+
         # Pause after WAIT_MOVE
         smach.StateMachine.add("PAUSE_AFTER_WAIT", pause_state,
                             transitions={"resumed": "EVALUATE"})

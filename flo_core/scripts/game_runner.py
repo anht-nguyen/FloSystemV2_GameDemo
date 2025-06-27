@@ -18,6 +18,10 @@ from flo_core.action_sequence_controller import Action
 from flo_core.prompt_utils import build_prompt
 from actionlib import SimpleActionClient
 
+from polly_tts import PollyTTS
+from polly_tts_streaming import PollyTTSStream
+
+
 RULES_TEXT = (
     "Rules:\n"
     "  1) Robot will announce two arm actions.\n"
@@ -89,7 +93,7 @@ class Introduction:
 
 
 class Announce(smach.State):
-    def __init__(self, prompt_pub: rospy.Publisher, turn_pub: rospy.Publisher):
+    def __init__(self, prompt_pub: rospy.Publisher, turn_pub: rospy.Publisher, tts_client):
         super().__init__(
             outcomes=["succeeded", "aborted"],
             input_keys=["left_action", "right_action", "simon_says", "turn_idx"],
@@ -97,6 +101,7 @@ class Announce(smach.State):
         )
         self.prompt_pub = prompt_pub
         self.turn_pub = turn_pub
+        self.tts_client = tts_client
 
     def execute(self, ud):
         left = ud.left_action.name if ud.left_action else ""
@@ -108,6 +113,10 @@ class Announce(smach.State):
         prompt = build_prompt(left, right, ud.simon_says)
         rospy.loginfo(f"Prompt: {prompt}")
         self.prompt_pub.publish(prompt)
+        self.prompt_pub.publish(prompt)
+        # Speak the prompt using Amazon Polly
+        self.tts_client.speak(prompt)
+        # Publish the turn index
         self.turn_pub.publish(ud.turn_idx)
         return "succeeded"
 
@@ -300,7 +309,7 @@ def build_sm(sequence: list[tuple[Action,Action,bool]], params, score_pub, promp
         )
 
         with announce_cmd_and_detect:
-            smach.Concurrence.add("TALK", Announce(prompt_pub, turn_pub))
+            smach.Concurrence.add("TALK", Announce(prompt_pub, turn_pub, controller.tts))
             smach.Concurrence.add("CMD", smach_ros.SimpleActionState(
                 "/simon_cmd", SimonCmdAction,
                 goal_cb=_goal_cb,
@@ -404,6 +413,10 @@ class GameController:
         # Publishers
         self.score_pub = rospy.Publisher('/simon_game/score', Int32, queue_size=10)
         self.prompt_pub = rospy.Publisher('/simon_game/prompt', String, queue_size=1)
+
+        # Initialize Amazon Polly TTS client
+        self.tts = PollyTTSStream(voice_id="Salli", region_name="us-east-1")
+
         # Build state machine, passing in our fixed sequence
         self.sm = build_sm(self.sequence, self.params, self.score_pub, self.prompt_pub, self)
         # Introspection for viz
@@ -424,6 +437,10 @@ class GameController:
         self.cmd_client.wait_for_server()
         # Start the introspection server
         self.game_thread = None            # keep a handle so we can join()
+
+        self.cmd_client = SimpleActionClient("/simon_cmd", SimonCmdAction)
+        self.cmd_client.wait_for_server()
+
 
     # ───────────────────────────────── INTRO HANDLER ─────────────────────────
     def _run_intro(self):

@@ -178,7 +178,7 @@ class EvaluateState(smach.State):
         super().__init__(
             outcomes=["good", "bad"],
             input_keys=["pose_matched", "score"],
-            output_keys=["score"],
+            output_keys=["score", "eval_outcome"],
         )
         self.score_pub = score_pub
 

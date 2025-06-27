@@ -18,7 +18,6 @@ from flo_core.action_sequence_controller import Action
 from flo_core.prompt_utils import build_prompt
 from actionlib import SimpleActionClient
 
-from polly_tts import PollyTTS
 from polly_tts_streaming import PollyTTSStream
 
 
@@ -384,10 +383,10 @@ class GameController:
         self.action_pool = list(pool)
 
         self.params = {
-            "turn_timeout": int(rospy.get_param("~turn_timeout", 4.0)),
-            "face_duration": rospy.get_param("~face_duration", 1.2),
-            "simon_ratio": rospy.get_param("~simon_ratio", 0.6),
-            "total_rounds": rospy.get_param("~total_rounds", 15),
+            "turn_timeout": int(rospy.get_param("~turn_timeout")),
+            "face_duration": rospy.get_param("~face_duration"),
+            "simon_ratio": rospy.get_param("~simon_ratio"),
+            "total_rounds": rospy.get_param("~total_rounds"),
         }
 
         # ── status publisher so GUI can enable “Start” when we’re ready ──
@@ -445,17 +444,33 @@ class GameController:
     def _run_intro(self):
         """Runs in a background thread: dual-arm wave → rules → wait for GUI."""
         try:
-            # 1) Wave
+            # ── 1)  WELCOME ────────────────────────────────────────────────
+            rospy.loginfo("[INTRO] Speaking welcome speech")
+            # Let the GUI show the same text via its /prompt callback
+            # self.prompt_pub.publish(WELCOME_SPEECH.strip())
+
+            # --- Speak & wave concurrently --------------------------------
+            tts_thread = threading.Thread(
+                target=self.tts.speak, args=(WELCOME_SPEECH,)
+            )
+            tts_thread.start()              # non-blocking TTS stream
+
+            # Wave  (send_goal returns immediately; the arm starts moving)
             goal = SimonCmdGoal(
                 gesture_name="D_WAVE_left|D_WAVE_right", simon_says=True
             )
             rospy.loginfo("[INTRO] Dual-arm wave")
             self.cmd_client.send_goal(goal)
+
+            # Wait for BOTH the arm motion and the speech to finish
             self.cmd_client.wait_for_result()
+            tts_thread.join()
 
             # 2) Rules
-            rospy.loginfo("[INTRO] Publishing rules")
+            rospy.loginfo("[INTRO] Publishing rules text")
             self.prompt_pub.publish(RULES_TEXT)
+            rospy.loginfo("[INTRO] Speaking rules speech")
+            self.tts.speak(RULES_SPEECH)
 
             # 3) Wait for GUI to press Continue / Restart
             r = rospy.Rate(10)

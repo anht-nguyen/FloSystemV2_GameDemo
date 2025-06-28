@@ -1,0 +1,17 @@
+version: "3.9"
+services:
+  flo_robot:
+    build: .
+    network_mode: "host"          # so ROS uses host UDP/TCP ports
+    environment:
+      - DISPLAY=${DISPLAY}        # forward GUI
+      - QT_X11_NO_MITSHM=1
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw   # X11 socket
+      - ${HOME}/.Xauthority:/root/.Xauthority:ro
+      - /dev/snd:/dev/snd                 # ALSA for sound_play
+      - /dev/video0:/dev/video0           # webcam for flo_vision
+    devices:
+      - /dev/snd
+      - /dev/video0
+    privileged: true              # needed for some USB devices

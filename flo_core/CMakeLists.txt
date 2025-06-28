@@ -38,6 +38,7 @@ install(DIRECTORY src/flo_core/
 ## Install Python executables
 catkin_install_python(PROGRAMS
   scripts/moveit_controller.py
+  scripts/mini_game_runner_test_vision.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

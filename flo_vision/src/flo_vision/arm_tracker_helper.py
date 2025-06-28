@@ -23,6 +23,7 @@ class ArmTracker:
         
         # Tracking parameters
         self.history_length = 10
+        self.swing_leteral_history_length = 8
         self.angle_threshold = 80
         self.shoulder_angle_threshold = 60
         self.wrist_depth_threshold = 0.8
@@ -170,45 +171,46 @@ class ArmTracker:
                 cv2.putText(image, 'Right arm waving', (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
         except:
             pass
-
-    def is_left_arm_wave(self, landmarks, image):
-        try:
-            left_shoulder, left_elbow, left_wrist, left_angle, _ = self.get_arm_info(landmarks, 'right')
-            
-            if left_shoulder is None :
-                return False
-            
-            if self.is_arm_up(left_elbow, left_wrist):
-                self.left_angle_history.append(left_angle)
-                if len(self.left_angle_history) > self.history_length:
-                    self.left_angle_history.pop(0)
-
-            # Check if the arm is waving
-            if len(self.left_angle_history) == self.history_length and max(self.left_angle_history) - min(self.left_angle_history) > self.angle_threshold:
-                cv2.putText(image, 'Left arm waving', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-                return True
-        except:
-            pass
-        return False
     
-    def is_right_arm_wave(self, landmarks, image):
-        try:
-            right_shoulder, right_elbow, right_wrist, right_angle, _ = self.get_arm_info(landmarks, 'left')
-            if right_shoulder is None:
-                return False
-            
-            if self.is_arm_up(right_elbow, right_wrist):
-                self.right_angle_history.append(right_angle)
-                if len(self.right_angle_history) > self.history_length:
-                    self.right_angle_history.pop(0)
+    def is_single_arm_wave(self, landmarks, image, side='left'):
+        """
+        Generalized function for detecting waving arm gesture for a specific side.
 
-            # Check if the arm is waving
-            if len(self.right_angle_history) == self.history_length and max(self.right_angle_history) - min(self.right_angle_history) > self.angle_threshold:
-                cv2.putText(image, 'Right arm waving', (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+        Args:
+            landmarks: pose landmarks
+            image: image for drawing feedback
+            side: 'left' or 'right' to specify which arm to track
+
+        Returns:
+            bool: True if the waving gesture is detected
+        """
+        try:
+            if side == 'left':
+                shoulder, elbow, wrist, angle, _ = self.get_arm_info(landmarks, 'right')  # mirrored
+                history = self.left_angle_history
+                label_pos = (10, 30)
+                label = 'Left arm waving'
+            else:
+                shoulder, elbow, wrist, angle, _ = self.get_arm_info(landmarks, 'left')  # mirrored
+                history = self.right_angle_history
+                label_pos = (10, 60)
+                label = 'Right arm waving'
+
+            if shoulder is None:
+                return False
+
+            if self.is_arm_up(elbow, wrist):
+                history.append(angle)
+                if len(history) > self.history_length:
+                    history.pop(0)
+
+            if len(history) == self.history_length and max(history) - min(history) > self.angle_threshold:
+                cv2.putText(image, label, label_pos, cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
                 return True
         except:
             pass
         return False
+
 
 
     def is_arm_swing_lateral(self, landmarks, image):
@@ -224,24 +226,73 @@ class ArmTracker:
                 if left_elbow_angle > 150:
                     # record the shoulder angle history
                     self.left_shoulder_angle_history.append(left_shoulder_angle)
-                    if len(self.left_shoulder_angle_history) > self.history_length:
+                    if len(self.left_shoulder_angle_history) > self.swing_leteral_history_length:
                         self.left_shoulder_angle_history.pop(0)
                 if right_elbow_angle > 150:
                     self.right_shoulder_angle_history.append(right_shoulder_angle)
-                    if len(self.right_shoulder_angle_history) > self.history_length:
+                    if len(self.right_shoulder_angle_history) > self.swing_leteral_history_length:
                         self.right_shoulder_angle_history.pop(0)
             
             # Check if the shoulder is swinging
             # Print the difference between the max and min of the shoulder angle history on img
             cv2.putText(image, f'Left shoulder angle history: {self.left_shoulder_angle_history}', (10, 200), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 
-            if len(self.left_shoulder_angle_history) == self.history_length and abs(max(self.left_shoulder_angle_history) - min(self.left_shoulder_angle_history)) > self.shoulder_angle_threshold:
+            if len(self.left_shoulder_angle_history) == self.swing_leteral_history_length and abs(max(self.left_shoulder_angle_history) - min(self.left_shoulder_angle_history)) > self.shoulder_angle_threshold:
                 cv2.putText(image, 'Left shoulder swinging', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-            if len(self.right_shoulder_angle_history) == self.history_length and abs(max(self.right_shoulder_angle_history) - min(self.right_shoulder_angle_history)) > self.shoulder_angle_threshold:
+                left_detected = True
+            
+            if len(self.right_shoulder_angle_history) == self.swing_leteral_history_length and abs(max(self.right_shoulder_angle_history) - min(self.right_shoulder_angle_history)) > self.shoulder_angle_threshold:
                 cv2.putText(image, 'Right shoulder swinging', (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                right_detected = True
+            if left_detected and right_detected:
+                return True
 
         except:
             pass
+        return False
+
+    def is_single_arm_swing_lateral(self, landmarks, image, side='left'):
+        """
+        Detect if a single arm is performing lateral swing based on shoulder angle variance.
+
+        Args:
+            landmarks: pose landmarks
+            image: image for feedback
+            side: 'left' or 'right' arm to check
+
+        Returns:
+            bool: True if the lateral swing is detected for specified arm
+        """
+        try:
+            if side == 'left':
+                # Note: reversed to get correct body side from mirrored camera
+                shoulder, elbow, wrist, elbow_angle, shoulder_angle = self.get_arm_info(landmarks, 'right')
+                history = self.left_shoulder_angle_history
+                label_pos = (10, 30)
+                label = 'Left shoulder swinging'
+            else:
+                shoulder, elbow, wrist, elbow_angle, shoulder_angle = self.get_arm_info(landmarks, 'left')
+                history = self.right_shoulder_angle_history
+                label_pos = (10, 60)
+                label = 'Right shoulder swinging'
+
+            if shoulder is None:
+                return False
+
+            # Only track when elbow is extended
+            if elbow_angle > 150:
+                history.append(shoulder_angle)
+                if len(history) > self.swing_leteral_history_length:
+                    history.pop(0)
+
+            if len(history) == self.swing_leteral_history_length and \
+            abs(max(history) - min(history)) > self.shoulder_angle_threshold:
+                cv2.putText(image, label, label_pos, cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                return True
+        except:
+            pass
+        return False
+    
 
     def is_arm_swing_forward(self, landmarks, image):
         try:
@@ -319,6 +370,38 @@ class ArmTracker:
         except:
             pass
         return False
+    
+    def is_single_arm_raise(self, landmarks, image, side='left'):
+        """
+        Detect if a single arm is raised straight above based on elbow and shoulder angles.
+
+        Args:
+            landmarks: pose landmarks
+            image: image for feedback
+            side: 'left' or 'right' arm to check
+
+        Returns:
+            bool: True if the specified arm is raised
+        """
+        try:
+            if side == 'left':
+                shoulder, elbow, wrist, elbow_angle, shoulder_angle = self.get_arm_info(landmarks, 'right')  # mirrored
+                label_pos = (10, 30)
+                label = 'Left arm raised'
+            else:
+                shoulder, elbow, wrist, elbow_angle, shoulder_angle = self.get_arm_info(landmarks, 'left')
+                label_pos = (10, 60)
+                label = 'Right arm raised'
+
+            if shoulder is None:
+                return False
+
+            if elbow_angle > 165 and shoulder_angle > 165 and self.is_arm_up(elbow, wrist):
+                cv2.putText(image, label, label_pos, cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                return True
+        except:
+            pass
+        return False
 
     
     # ---------------------------------------------------------------------------- #
@@ -367,7 +450,7 @@ class ArmTracker:
             print(f'Error')
             pass
 
-    def is_reaching_to_the_side(self, pose_landmarks, image):
+    def is_reaching_to_side_with_progress_bar(self, pose_landmarks, image):
         try:
             _,_,_,left_elbow_angle,left_shoulder_angle = self.get_arm_info(pose_landmarks, 'right')
             _,_,_,right_elbow_angle,right_shoulder_angle = self.get_arm_info(pose_landmarks, 'left')
@@ -401,6 +484,60 @@ class ArmTracker:
         except:
             pass
     
+    def is_arm_reach_side(self, pose_landmarks, image):
+        try:
+            # Get the arm information
+            left_shoulder, left_elbow, left_wrist, left_elbow_angle, left_shoulder_angle = self.get_arm_info(pose_landmarks, 'right')
+            right_shoulder, right_elbow, right_wrist, right_elbow_angle, right_shoulder_angle = self.get_arm_info(pose_landmarks, 'left')
+            
+            # Check if the elbow is raised
+            if left_elbow_angle > 160 and left_shoulder_angle > 50 and left_shoulder_angle < 130:
+                cv2.putText(image, 'Left arm held to side!', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                left_arm_reaching = True
+            if right_elbow_angle > 160 and right_shoulder_angle > 50 and right_shoulder_angle < 130:
+                cv2.putText(image, 'Right arm held to side!', (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                right_arm_reaching = True
+            
+            if left_arm_reaching and right_arm_reaching:
+                return True
+
+        except:
+            pass
+        return False
+    
+    def is_single_arm_reach_side(self, pose_landmarks, image, side='left'):
+        """
+        Detect if a single arm is stretched out to the side (horizontal).
+
+        Args:
+            pose_landmarks: pose landmarks
+            image: image for annotation
+            side: 'left' or 'right'
+
+        Returns:
+            bool: True if specified arm is held out to the side
+        """
+        try:
+            if side == 'left':
+                shoulder, elbow, wrist, elbow_angle, shoulder_angle = self.get_arm_info(pose_landmarks, 'right')  # mirrored
+                label = 'Left arm held to side!'
+                label_pos = (10, 30)
+            else:
+                shoulder, elbow, wrist, elbow_angle, shoulder_angle = self.get_arm_info(pose_landmarks, 'left')
+                label = 'Right arm held to side!'
+                label_pos = (10, 60)
+
+            if shoulder is None:
+                return False
+
+            # Check condition: elbow straight and shoulder angle within horizontal range
+            if elbow_angle > 160 and 50 < shoulder_angle < 130:
+                cv2.putText(image, label, label_pos, cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                return True
+        except:
+            pass
+        return False
+    
     def is_static_pose(self, pose_landmarks, image):
         try:
             # Get the arm information
@@ -411,5 +548,10 @@ class ArmTracker:
             if left_shoulder is not None or right_shoulder is not None:
                 if left_elbow_angle < 140 or left_shoulder_angle > 30 or right_elbow_angle < 140 or right_shoulder_angle > 30:
                     cv2.putText(image, 'Fail to keep the static pose', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                    return False
+                else:
+                    cv2.putText(image, 'Keep the static pose', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                    return True
         except:
             pass
+        return False

@@ -143,7 +143,7 @@ class ArmHandTrackerNode:
         new_pose = msg.data.strip().lower()
        
         pose_list = [p.strip() for p in new_pose.split(',') if p.strip()]
-        valid_poses = ["all", "wave", "swing_lateral", "swing_forward", "raise", "d_wave_left", "d_wave_right"]
+        valid_poses = ["all", "static", "wave", "swing_lateral", "reach_side", "raise", "d_wave_left", "d_wave_right","d_swing_lateral_left", "d_swing_lateral_right", "s_raise_left", "s_raise_right","s_reach_side_left", "s_reach_side_right"]
         invalid_poses = [p for p in pose_list if p not in valid_poses]
        
         if invalid_poses:
@@ -243,14 +243,44 @@ class ArmHandTrackerNode:
             if "raise" in self.pose_to_detect or "all" in self.pose_to_detect:
                 if self.arm_tracker.is_arm_raise(landmarks, image_bgr):
                     detected_gestures.append("raise")
-                
+            if "reach_side" in self.pose_to_detect or "all" in self.pose_to_detect:
+                if self.arm_tracker.is_arm_reach_side(landmarks, image_bgr):
+                    detected_gestures.append("reach_side")
+
             if "d_wave_left" in self.pose_to_detect or "all" in self.pose_to_detect:
-                if self.arm_tracker.is_left_arm_wave(landmarks, image_bgr):
+                if self.arm_tracker.is_single_arm_wave(landmarks, image_bgr, side='left'):
                     detected_gestures.append("d_wave_left")
             
             if "d_wave_right" in self.pose_to_detect or "all" in self.pose_to_detect:
-                if self.arm_tracker.is_right_arm_wave(landmarks, image_bgr):
+                if self.arm_tracker.is_single_arm_wave(landmarks, image_bgr, side='right'):
                     detected_gestures.append("d_wave_right")
+
+            if "d_swing_lateral_left" in self.pose_to_detect or "all" in self.pose_to_detect:
+                if self.arm_tracker.is_single_arm_swing_lateral(landmarks, image_bgr, side='left'):
+                    detected_gestures.append("d_swing_lateral_left")
+            if "d_swing_lateral_right" in self.pose_to_detect or "all" in self.pose_to_detect:
+                if self.arm_tracker.is_single_arm_swing_lateral(landmarks, image_bgr, side='right'):
+                    detected_gestures.append("d_swing_lateral_right")
+
+            if "s_raise_left" in self.pose_to_detect or "all" in self.pose_to_detect:
+                if self.arm_tracker.is_single_arm_raise(landmarks, image_bgr, side='left'):
+                    detected_gestures.append("s_raise_left")
+
+            if "s_raise_right" in self.pose_to_detect or "all" in self.pose_to_detect:
+                if self.arm_tracker.is_single_arm_raise(landmarks, image_bgr, side='right'):
+                    detected_gestures.append("s_raise_right")
+            
+            if "s_reach_side_left" in self.pose_to_detect or "all" in self.pose_to_detect:
+                if self.arm_tracker.is_single_arm_reach_side(landmarks, image_bgr, side='left'):
+                    detected_gestures.append("s_reach_side_left")
+
+            if "s_reach_side_right" in self.pose_to_detect or "all" in self.pose_to_detect:
+                if self.arm_tracker.is_single_arm_reach_side(landmarks, image_bgr, side='right'):
+                    detected_gestures.append("s_reach_side_right")
+
+            if "static" in self.pose_to_detect or "all" in self.pose_to_detect:
+                if self.arm_tracker.is_static_pose(landmarks, image_bgr):
+                    detected_gestures.append("static")
 
             # publish the gesture
             if detected_gestures:

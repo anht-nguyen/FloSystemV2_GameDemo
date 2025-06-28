@@ -101,6 +101,7 @@ class Announce(smach.State):
         self.prompt_pub = prompt_pub
         self.turn_pub = turn_pub
         self.tts_client = tts_client
+        self.pose_cmd_pub = rospy.Publisher("/arm_hand_tracker/pose_command", String, queue_size=1)
 
     def execute(self, ud):
         left = ud.left_action.name if ud.left_action else ""
@@ -116,6 +117,18 @@ class Announce(smach.State):
         self.tts_client.speak(prompt)
         # Publish the turn index
         self.turn_pub.publish(ud.turn_idx)
+
+        if not ud.simon_says:
+            # If it is not a Simon Says turn, we will let camera detect static
+            msg = String(data="static")
+        else:
+            # If it is a Simon Says turn, we will let camera detect the left and right actions
+            player_right = ud.left_action.name.lower() +"_right"
+            player_left = ud.right_action.name.lower() + "_left"
+            msg = String(data=f"{player_right},{player_left}")
+        rospy.loginfo(f"Publishing pose command: {msg.data}")
+        self.pose_cmd_pub.publish(msg)
+
         return "succeeded"
 
 # class WaitForPose(smach.State):

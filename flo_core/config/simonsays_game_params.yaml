@@ -2,7 +2,7 @@
 
 left_actions:  &all_actions
   - D_WAVE
-  # - D_SWING_LATERAL
+  # D_SWING_LATERAL
   # - D_RAISE
   # - D_SWING_FORWARD
   - S_RAISE
@@ -14,6 +14,6 @@ right_actions: *all_actions   # clone the same list
 
 turn_timeout:          5.0        # seconds for player to copy the pose
 face_duration:         2.0        # seconds robot shows happy/sad face
-simon_ratio:           0.6        # 60 % of prompts include “Simon says”
-total_rounds:          15         # stop after 15 dual-arm turns
+simon_ratio:           1.0       # 60 % of prompts include “Simon says”
+total_rounds:          5         # stop after 15 dual-arm turns
 threshold:             0.5        # threshold for pose similarity

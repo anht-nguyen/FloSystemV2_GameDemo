@@ -153,7 +153,7 @@ class ArmHandTrackerNode:
         if pose_list:
             old_pose = self.pose_to_detect
             self.pose_to_detect = pose_list 
-            rospy.loginfo(f"Pose detection changed from '{old_pose}' to '{pose_list}'")
+            rospy.loginfo(f"Camera is trying to detect '{pose_list}' now")
         else:
             rospy.logwarn("Empty pose list received")
 

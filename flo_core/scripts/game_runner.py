@@ -18,13 +18,28 @@ from flo_core.action_sequence_controller import Action
 from flo_core.prompt_utils import build_prompt
 from actionlib import SimpleActionClient
 
+from polly_tts_streaming import PollyTTSStream
+
+
 RULES_TEXT = (
-    "Welcome to Dual-Arm Simon Says!\n"
     "Rules:\n"
     "  1) Robot will announce two arm actions.\n"
     "  2) If it says ‘Simon says’, you do them. Otherwise, you stay still.\n"
     "Click Continue when you’re ready, or Restart to hear these again."
 )
+
+
+WELCOME_SPEECH = (
+    "Welcome to Simon Says game with Flo robot!\n")
+
+RULES_SPEECH = """
+    in simon says, I will tell you something to do and show you how to do it, mirrored.
+    If I say simon says, you should do it with me.
+    If I do not say simon says, you should not do the action.
+    Watch out, I may try to trick you.
+    After every movement return to a ready position.
+    Are you ready to play?
+    """
 
 # ────────────────────────────────────────────────────────────────────────────
 # Helper states
@@ -77,7 +92,7 @@ class Introduction:
 
 
 class Announce(smach.State):
-    def __init__(self, prompt_pub: rospy.Publisher, turn_pub: rospy.Publisher):
+    def __init__(self, prompt_pub: rospy.Publisher, turn_pub: rospy.Publisher, tts_client):
         super().__init__(
             outcomes=["succeeded", "aborted"],
             input_keys=["left_action", "right_action", "simon_says", "turn_idx"],
@@ -85,6 +100,7 @@ class Announce(smach.State):
         )
         self.prompt_pub = prompt_pub
         self.turn_pub = turn_pub
+        self.tts_client = tts_client
 
     def execute(self, ud):
         left = ud.left_action.name if ud.left_action else ""
@@ -96,6 +112,9 @@ class Announce(smach.State):
         prompt = build_prompt(left, right, ud.simon_says)
         rospy.loginfo(f"Prompt: {prompt}")
         self.prompt_pub.publish(prompt)
+        # Speak the prompt using Amazon Polly
+        self.tts_client.speak(prompt)
+        # Publish the turn index
         self.turn_pub.publish(ud.turn_idx)
         return "succeeded"
 
@@ -333,7 +352,7 @@ def build_sm(sequence: list[tuple[Action,Action,bool]], params, score_pub, promp
         )
 
         with announce_cmd_and_detect:
-            smach.Concurrence.add("TALK", Announce(prompt_pub, turn_pub))
+            smach.Concurrence.add("TALK", Announce(prompt_pub, turn_pub, controller.tts))
             smach.Concurrence.add("CMD", smach_ros.SimpleActionState(
                 "/simon_cmd", SimonCmdAction,
                 goal_cb=_goal_cb,
@@ -409,11 +428,11 @@ class GameController:
         self.action_pool = list(pool)
 
         self.params = {
-            "turn_timeout": int(rospy.get_param("~turn_timeout", 4.0)),
-            "face_duration": rospy.get_param("~face_duration", 1.2),
-            "simon_ratio": rospy.get_param("~simon_ratio", 0.6),
-            "total_rounds": rospy.get_param("~total_rounds", 15),
-            "success_threshold": rospy.get_param("~threshold", 0.5)
+            "turn_timeout": int(rospy.get_param("~turn_timeout")),
+            "face_duration": rospy.get_param("~face_duration"),
+            "simon_ratio": rospy.get_param("~simon_ratio"),
+            "total_rounds": rospy.get_param("~total_rounds"),
+            "success_threshold": rospy.get_param("~threshold")
         }
 
         # ── status publisher so GUI can enable “Start” when we’re ready ──
@@ -438,6 +457,10 @@ class GameController:
         # Publishers
         self.score_pub = rospy.Publisher('/simon_game/score', Int32, queue_size=10)
         self.prompt_pub = rospy.Publisher('/simon_game/prompt', String, queue_size=1)
+
+        # Initialize Amazon Polly TTS client
+        self.tts = PollyTTSStream(voice_id="Salli", region_name="us-east-1")
+
         # Build state machine, passing in our fixed sequence
         self.sm = build_sm(self.sequence, self.params, self.score_pub, self.prompt_pub, self)
         # Introspection for viz
@@ -459,21 +482,41 @@ class GameController:
         # Start the introspection server
         self.game_thread = None            # keep a handle so we can join()
 
+        self.cmd_client = SimpleActionClient("/simon_cmd", SimonCmdAction)
+        self.cmd_client.wait_for_server()
+
+
     # ───────────────────────────────── INTRO HANDLER ─────────────────────────
     def _run_intro(self):
         """Runs in a background thread: dual-arm wave → rules → wait for GUI."""
         try:
-            # 1) Wave
+            # ── 1)  WELCOME ────────────────────────────────────────────────
+            rospy.loginfo("[INTRO] Speaking welcome speech")
+            # Let the GUI show the same text via its /prompt callback
+            # self.prompt_pub.publish(WELCOME_SPEECH.strip())
+
+            # --- Speak & wave concurrently --------------------------------
+            tts_thread = threading.Thread(
+                target=self.tts.speak, args=(WELCOME_SPEECH,)
+            )
+            tts_thread.start()              # non-blocking TTS stream
+
+            # Wave  (send_goal returns immediately; the arm starts moving)
             goal = SimonCmdGoal(
                 gesture_name="D_WAVE_left|D_WAVE_right", simon_says=True
             )
             rospy.loginfo("[INTRO] Dual-arm wave")
             self.cmd_client.send_goal(goal)
+
+            # Wait for BOTH the arm motion and the speech to finish
             self.cmd_client.wait_for_result()
+            tts_thread.join()
 
             # 2) Rules
-            rospy.loginfo("[INTRO] Publishing rules")
+            rospy.loginfo("[INTRO] Publishing rules text")
             self.prompt_pub.publish(RULES_TEXT)
+            rospy.loginfo("[INTRO] Speaking rules speech")
+            self.tts.speak(RULES_SPEECH)
 
             # 3) Wait for GUI to press Continue / Restart
             r = rospy.Rate(10)

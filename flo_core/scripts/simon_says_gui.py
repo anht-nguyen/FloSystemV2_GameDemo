@@ -267,12 +267,12 @@ class SimonGUI(QWidget):
             self.current_score = 0
             self.lbl_turn.setText(f"Turn: 0/{self.total_rounds}")
             self.lbl_score.setText("Score: 0")
-            self.lbl_prompt.setText("Prompt: –")
+            self.lbl_prompt.setText("Welcome to Simon Says game with Flo robot!\n") 
         elif new_state == GameState.IDLE:
             # Coming here after Stop/Restart → wait for fresh “Waiting…”
             self.ready_for_start = False
             # clear GUI after stop/restart
-            self.lbl_prompt.setText("Prompt: –")
+            self.lbl_prompt.setText("Press Start to begin\n")
         elif new_state == GameState.GAME_OVER:
             # Stop countdown, keep the last score/turn visible
             self.ticker.stop()

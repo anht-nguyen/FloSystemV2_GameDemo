@@ -12,8 +12,8 @@ left_actions:  &all_actions
 
 right_actions: *all_actions   # clone the same list
 
-turn_timeout:          4.0        # seconds for player to copy the pose
-face_duration:         1.2        # seconds robot shows happy/sad face
+turn_timeout:          5.0        # seconds for player to copy the pose
+face_duration:         2.0        # seconds robot shows happy/sad face
 simon_ratio:           0.6        # 60 % of prompts include “Simon says”
 total_rounds:          15         # stop after 15 dual-arm turns
 threshold:             0.5        # threshold for pose similarity

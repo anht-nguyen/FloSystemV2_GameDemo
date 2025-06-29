@@ -1,14 +1,35 @@
+# /etc/systemd/system/flogame.service
 [Unit]
 Description=Auto-start Flo Simon Says Game Docker
-After=network.target docker.service
+After=network-online.target docker.service
 Requires=docker.service
 
 [Service]
-User=your_username
-ExecStart=/home/your_username/start_flo_game.sh
+# Run as your user, with Docker permissions
+User=YOUR_USERNAME
+Group=docker
+
+# Ensure script runs from project root
+WorkingDirectory=/home/YOUR_USERNAME/Documents/git/FloSystemV2_GameDemo
+
+# Launch and also define how to stop cleanly
+ExecStart=/home/YOUR_USERNAME/Documents/git/FloSystemV2_GameDemo/auto_startup_flogame_launcher.sh
+ExecStop=/usr/bin/docker compose down
+
+# Restart on failures only
 Restart=on-failure
 TimeoutStartSec=30
-Environment=DISPLAY=:0
+
+# For GUI forwarding (if needed)
+Environment="DISPLAY=:0"
+Environment="XAUTHORITY=/home/YOUR_USERNAME/.Xauthority"
 
 [Install]
 WantedBy=multi-user.target
+# Note: Replace YOUR_USERNAME with your actual username
+# Ensure the script has execute permissions: chmod +x /home/YOUR_USERNAME/Documents/git/FloSystemV2_GameDemo/auto_startup_flogame_launcher.sh
+# Enable the service:
+sudo systemctl daemon-reload
+# sudo systemctl enable flogame.service
+# Start the service:
+# sudo systemctl start flogame.service

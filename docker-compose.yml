@@ -1,16 +1,27 @@
+# docker-compose.yml
+version: "3.8"
+
 services:
   flo_robot:
-    build: .
-    network_mode: "host"          # so ROS uses host UDP/TCP ports
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: flo_system_v2_game_demo:latest
+    container_name: flo_game
+    network_mode: host               # ROS networking on host
     environment:
-      - DISPLAY=${DISPLAY}        # forward GUI
-      - QT_X11_NO_MITSHM=1
+      - DISPLAY=${DISPLAY}           # forward X11
+      - XAUTHORITY=/home/${USER}/.Xauthority
     volumes:
-      - /tmp/.X11-unix:/tmp/.X11-unix:rw   # X11 socket
-      - ${HOME}/.Xauthority:/root/.Xauthority:ro
-      - /dev/snd:/dev/snd                 # ALSA for sound_play
-      - /dev/video0:/dev/video0           # webcam for flo_vision
+      - /tmp/.X11-unix:/tmp/.X11-unix:ro
+      - ${XAUTHORITY}:/home/${USER}/.Xauthority:ro
+      - /dev:/dev                     # for camera & devices
     devices:
-      - /dev/snd
-      - /dev/video0
-    privileged: true              # needed for some USB devices
+      - /dev/video0:/dev/video0      # adjust if your Astra camera is on a different node
+    working_dir: /catkin_ws
+    command: >
+      bash -lc "
+        source /opt/ros/noetic/setup.bash &&
+        source /catkin_ws/devel/setup.bash &&
+        # Add commands to launch your ROS nodes or applications here
+      "

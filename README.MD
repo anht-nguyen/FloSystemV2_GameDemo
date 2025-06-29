@@ -73,11 +73,9 @@ FloSystemV2_GameDemo/
 3. Install git: `sudo apt install git-all`
 4. Clone this repo into `~/Documents/git`
 5. Build Docker containner: `docker compose up`
-6. Add cron jobs to automatically startup the game:
+6. Automatically startup docker and the game:
 
-   1. `crontab -e`
-   2. `SHELL=/bin/bash`. This
-   3. `@reboot (sleep 90; source ~/.bashrc; ~/Documents/git/FloSystem/robot_tmux_launcher.sh)`
+   1. Make startup launcher script executable: `chmod +x ./auto_startup_flogame_launcher.sh`
 
 
 

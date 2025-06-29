@@ -20,11 +20,13 @@ RUN apt-get update && apt-get upgrade -y && \
     ros-noetic-sensor-msgs ros-noetic-std-msgs \
     # misc tooling
     python3-pip python3-pyqt5 alsa-utils \
+    portaudio19-dev \
+    build-essential \
     git \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # ------------  Python user-level deps -----
-RUN pip3 install --no-cache-dir \
+RUN pip3 install --default-timeout=100 --no-cache-dir \
     boto3 \
     pyaudio \
     opencv-python \

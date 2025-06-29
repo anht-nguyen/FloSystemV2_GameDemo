@@ -53,17 +53,16 @@ RUN pip3 install --default-timeout=100 \
     pyaudio \
     opencv-python 
 
-RUN pip3 install --default-timeout=100 \
-    mediapipe
+RUN pip3 install --default-timeout=100 mediapipe
 
 # ------------  Catkin workspace ----------
 ENV CATKIN_WS=/catkin_ws
 RUN mkdir -p $CATKIN_WS/src
 WORKDIR $CATKIN_WS
 
-# clone repo into workspace
+# clone repo into workspace (change branch if needed)
 RUN apt-get update && apt-get install -y --no-install-recommends git && \
-    git clone --branch master https://github.com/anht-nguyen/FloSystemV2_GameDemo.git $CATKIN_WS/src/FloSystemV2_GameDemo && \
+    git clone --branch general-docker-dev https://github.com/anht-nguyen/FloSystemV2_GameDemo.git $CATKIN_WS/src/FloSystemV2_GameDemo && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # resolve rosdep and build

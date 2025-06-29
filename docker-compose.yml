@@ -22,6 +22,6 @@ services:
     command: >
       bash -lc "
         source /opt/ros/noetic/setup.bash &&
-        source /catkin_ws/devel/setup.bash &&
+        source /catkin_ws/devel/setup.bash
         # Add commands to launch your ROS nodes or applications here
       "

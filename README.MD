@@ -71,12 +71,44 @@ FloSystemV2_GameDemo/
 
    c. Verify installation: `docker run hello-world`, `docker compose version`
 3. Install git: `sudo apt install git-all`
-4. Clone this repo into `~/Documents/git`
-5. Build Docker containner: `docker compose up`
+4. Clone this repo into `~/Documents/git/`
+5. Set up AWS Polly: You need to setup [Amazon Polly](#amazon-polly) This should be as easy as just answering the questions during the install script.
+
+  a. Create `certs` directory:
+
+```
+  cd ~/Documents/git/FloSystemV2_GameDemo   
+  mkdir certs  
+```
+
+  b. Add your AWS access keys: Inside `certs`, create a file named `aws-credentials` with these three lines (replace with your actual keys):
+
+```
+  [flo]
+  aws_access_key_id = YOUR_AWS_KEY_ID
+  aws_secret_access_key = YOUR_AWS_SECRET_KEY
+```
+
+  c. Add AWS CLI config: Also in `certs`, create `aws-config` containing:
+
+```
+  [profile flo]
+  region = us-east-1
+  output = json
+```
+
+6. Set up Astra camera
+7. Build Docker containner:
+
+```sh
+  docker compose build       # ~10 min the first time
+  docker compose up          # starts a bash prompt inside the catkin_ws
+```
+
 6. Automatically startup docker and the game:
 
    1. Make startup launcher script executable: `chmod +x ./auto_startup_flogame_launcher.sh`
-   2. Move `flogame.service` to `etc/systemd/system/flogame.service` and replace `your_username` with your actual Linux username
+   2. Copy `flogame.service` to `etc/systemd/system/flogame.service` and replace `your_username` with your actual Linux username
    3. Enable service:
 
    ```sh
@@ -85,20 +117,9 @@ FloSystemV2_GameDemo/
    sudo systemctl enable flogame.service
    ```
 
-
-
-
-Set up AWS Polly: You need to setup [Amazon Polly](#amazon-polly) This should be as easy as
-just answering the questions during the install script.
-
 ---
 
 ## Building and Running with Docker
-
-```sh
-docker compose build       # ~10 min the first time
-docker compose up          # starts a bash prompt inside the catkin_ws
-```
 
 ## Usage
 
@@ -172,6 +193,10 @@ A few notes:
 - you might find that you are getting some sort of server connection errors. you
   can resolve that by running `pip3 install -U boto3` (this should now be a part
   of the install script, but it is commented out)
+
+---
+
+### Astra camera setting up
 
 ---
 

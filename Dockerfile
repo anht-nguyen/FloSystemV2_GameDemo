@@ -60,14 +60,12 @@ ENV CATKIN_WS=/catkin_ws
 RUN mkdir -p $CATKIN_WS/src
 WORKDIR $CATKIN_WS
 
-# clone repo into workspace (change branch if needed)
-RUN apt-get update && apt-get install -y --no-install-recommends git && \
-    git clone --branch general-docker-dev https://github.com/anht-nguyen/FloSystemV2_GameDemo.git $CATKIN_WS/src/FloSystemV2_GameDemo && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+# Copy your code (instead of git-cloning inside the container)
+#    Context path must include this Dockerfile and your repo
+COPY . /$CATKIN_WS/src/
 
 # resolve rosdep and build
-RUN rosdep init && \
-    rosdep update
+RUN rosdep init 
 
 RUN . /opt/ros/noetic/setup.sh && \
     rosdep update && \

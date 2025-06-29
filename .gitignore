@@ -31,3 +31,7 @@ Thumbs.db
 *.tmp
 *.orig
 *~
+
+# Cert directories
+certs/
+cert/

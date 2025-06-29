@@ -16,6 +16,8 @@ services:
       - /tmp/.X11-unix:/tmp/.X11-unix:ro
       - ${XAUTHORITY}:/home/${USER}/.Xauthority:ro
       - /dev:/dev                     # for camera & devices
+      - ./certs/aws-credentials:/root/.aws/credentials:ro
+      - ./certs/aws-config:/root/.aws/config:ro
     devices:
       - /dev/video0:/dev/video0      # adjust if your Astra camera is on a different node
     working_dir: /catkin_ws

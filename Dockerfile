@@ -12,7 +12,7 @@ RUN apt-get update && apt-get upgrade -y && \
     ros-noetic-moveit \
     ros-noetic-sound-play \
     # new: hardware & controller support
-    ros-noetic-dynamixel-sdk ros-noetic-dynamixel-examples \
+    ros-noetic-dynamixel-sdk ros-noetic-dynamixel-sdk-examples \
     ros-noetic-controller-manager ros-noetic-joint-state-controller \
     ros-noetic-joint-state-publisher ros-noetic-robot-state-publisher \
     # new: vision & message transport

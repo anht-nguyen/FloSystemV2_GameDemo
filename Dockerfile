@@ -15,6 +15,15 @@ RUN apt-get update && apt-get upgrade -y && \
     ros-noetic-dynamixel-sdk ros-noetic-dynamixel-sdk-examples \
     ros-noetic-controller-manager ros-noetic-joint-state-controller \
     ros-noetic-joint-state-publisher ros-noetic-robot-state-publisher \
+    ros-noetic-gazebo-ros-pkgs \
+    ros-noetic-gazebo-ros-control \
+    ros-noetic-ros-control \
+    ros-noetic-ros-controllers \
+    ros-noetic-rosbag \
+    ros-noetic-smach \
+    ros-noetic-smach-ros \  
+    ros-noetic-smach-viewer \
+    ros-noetic-rosbridge-server \
     # new: vision & message transport
     ros-noetic-usb-cam ros-noetic-cv-bridge ros-noetic-image-transport \
     ros-noetic-sensor-msgs ros-noetic-std-msgs \
@@ -24,15 +33,21 @@ RUN apt-get update && apt-get upgrade -y && \
     build-essential \
     git \
     python3-rosdep \
+    python3-catkin-tools \
+    python3-matplotlib \
+    python3-numpy \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # ------------  Python user-level deps -----
-RUN pip3 install --default-timeout=100 --no-cache-dir \
+RUN pip3 install --default-timeout=100 \
+    numpy \
+    scipy \
+    matplotlib \
     boto3 \
     pyaudio \
     opencv-python 
 
-RUN pip3 install --default-timeout=100 --no-cache-dir \
+RUN pip3 install --default-timeout=100 \
     mediapipe
 
 # ------------  Catkin workspace ----------
@@ -46,6 +61,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends git && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # resolve rosdep and build
+RUN rosdep init && \
+    rosdep update
+
 RUN . /opt/ros/noetic/setup.sh && \
     rosdep update && \
     rosdep install --from-paths src --ignore-src -r -y && \

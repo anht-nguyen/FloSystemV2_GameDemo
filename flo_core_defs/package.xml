@@ -22,8 +22,8 @@
   <exec_depend>tf</exec_depend>
   <exec_depend>python-serial</exec_depend>
   <!--Non-ROS dependencies to be brought in by ros dep-->
-  <exec_depend>python-numpy</exec_depend>
-  <exec_depend>python-matplotlib</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-matplotlib</exec_depend>
   <build_depend>actionlib_msgs</build_depend>
   <exec_depend>actionlib_msgs</exec_depend>
   <exec_depend>message_runtime</exec_depend>

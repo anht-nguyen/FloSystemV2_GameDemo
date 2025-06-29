@@ -38,6 +38,12 @@ RUN apt-get update && apt-get upgrade -y && \
     python3-numpy \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
 
+
+ RUN apt-get update && apt-get upgrade -y && \
+    apt-get install -y --no-install-recommends \
+    python-is-python3 \
+ && apt-get clean && rm -rf /var/lib/apt/lists/*
+
 # ------------  Python user-level deps -----
 RUN pip3 install --default-timeout=100 \
     numpy \

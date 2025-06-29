@@ -2,11 +2,13 @@
 # Ubuntu 20.04 + GUI tools + MoveIt
 # official tags: hub.docker.com/_/ros
 
-FROM ros:noetic-desktop-full
+FROM ros:noetic-ros-core
 ENV DEBIAN_FRONTEND=noninteractive
 
-# ------------  OS-level deps --------------
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Install desktop and MoveIt dependencies explicitly to avoid unnecessary packages
+RUN apt-get update && apt-get upgrade -y && \
+    apt-get install -y --no-install-recommends \
+    ros-noetic-desktop \
     ros-noetic-moveit \
     ros-noetic-sound-play \
     # new: hardware & controller support
@@ -18,6 +20,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-noetic-sensor-msgs ros-noetic-std-msgs \
     # misc tooling
     python3-pip python3-pyqt5 alsa-utils \
+    git \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # ------------  Python user-level deps -----

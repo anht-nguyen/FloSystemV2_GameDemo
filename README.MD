@@ -50,51 +50,48 @@ FloSystemV2_GameDemo/
 
 ## Prerequisites
 
-### Host machine (Ubuntu 22.04)
+### Setting up Host machine
 
-| Tool                                     | Install command                            |
-| ---------------------------------------- | ------------------------------------------ |
-| **Docker Engine ≥ 25.0**          | `sudo apt install docker.io`             |
-| **docker-compose plugin**          | `sudo apt install docker-compose-plugin` |
-| **X-authority helper** (`xhost`) | `sudo apt install x11-xserver-utils`     |
+1. Install Ubuntu 22 or 24
+2. Install [docker](https://docs.docker.com/engine/install/ubuntu/) and complete the post installation steps, then test docker by running the hello world image
+   Note: after installing Docker engine and Docker Compose plugin do the following:
 
-After installing the packages above, add your user to the **docker** group so the container can access X11 and devices without `sudo`:
+   a. Enable and start the Docker service
 
-```bash
-sudo usermod -aG docker $USER
-# Log out/in or run:
-newgrp docker
-```
+   ```sh
+   sudo systemctl enable docker
+   sudo systemctl start docker
+   ```
 
-<!-- ## Docker Setup
+   b. Add your user to the docker group (to run without sudo)
 
-### 1. Install Docker
+   ```sh
+   sudo usermod -aG docker $USER
+   ```
 
-Follow the [official Docker installation guide](https://docs.docker.com/get-docker/) for your OS.
+   c. Verify installation: `docker run hello-world`, `docker compose version`
+3. Install git: `sudo apt install git-all`
+4. Clone this repo into `~/Documents/git`
+5. Build Docker containner: `docker compose up`
+6. Add cron jobs to automatically startup the game:
 
-### 2. (Optional) Install docker-compose
+   1. `crontab -e`
+   2. `SHELL=/bin/bash`. This
+   3. `@reboot (sleep 90; source ~/.bashrc; ~/Documents/git/FloSystem/robot_tmux_launcher.sh)`
 
-```sh
-sudo apt-get install docker-compose
-``` -->
+
+
+Set up AWS Polly: You need to setup [Amazon Polly](#amazon-polly) This should be as easy as
+just answering the questions during the install script.
 
 ---
 
 ## Building and Running with Docker
 
-### Dev computer (mini PC):
-
-1. Setup Ubuntu 22 or 24
-2. Install git: `sudo apt install git-all`
-3. Clone this repo into `~/Documents/git`
-4. Run `./dev_install.sh`
-
 ```sh
 docker compose build       # ~10 min the first time
 docker compose up          # starts a bash prompt inside the catkin_ws
 ```
-
----
 
 ## Usage
 
@@ -131,6 +128,44 @@ docker compose up          # starts a bash prompt inside the catkin_ws
 
 ---
 
+## Misc.
+
+### Amazon Polly
+
+Polly will need to have access to AWS to work. To set that up, go to the
+[IAM Console](https://console.aws.amazon.com/iam) and click on users. Then
+select the user you want to give access to. Click "Create access key" under
+Security Credentials. Then in the console on the computer run `./aws_install.sh`
+which will
+[install the AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html)
+for you and run `aws configure --profile flo`, it will prompt you for input an
+you should fill in the info from the IAM console with region set to us-east-1
+and output set to json.
+
+A few notes:
+
+- you should probably restrict what the user that is getting access can do. The
+  best option is to set the permissions to AmazonPollyReadOnlyAccess
+- You can have other users configured. By changing the --profile, you control
+  the name of the user if no profile is specified, then the information is saved
+  to a default
+- If you ever need to revoke permissions for a user, that can be done from the
+  IAM Console by deactivating the user's Access Keys.
+- TODO: I would like to find a way to limit how many calls can be made by a
+  user.
+- To check whether polly is available given the profile, run
+  `aws polly help --profile flo`. If you get back a list of commands to run on
+  polly, you should be good.
+- To fully test, can run:
+  `aws polly synthesize-speech --output-format mp3 --voice-id Ivy --text 'hello, this is a test' --profile flo test.mp3`
+  and then play the audio by installing: `sudo apt install mpg123` and typing
+  `mpg123 test.mp3`
+- you might find that you are getting some sort of server connection errors. you
+  can resolve that by running `pip3 install -U boto3` (this should now be a part
+  of the install script, but it is commented out)
+
+---
+
 ## License
 
-This project is licensed under the
+TBD

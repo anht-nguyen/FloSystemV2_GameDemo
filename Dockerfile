@@ -23,13 +23,16 @@ RUN apt-get update && apt-get upgrade -y && \
     portaudio19-dev \
     build-essential \
     git \
+    python3-rosdep \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # ------------  Python user-level deps -----
 RUN pip3 install --default-timeout=100 --no-cache-dir \
     boto3 \
     pyaudio \
-    opencv-python \
+    opencv-python 
+
+RUN pip3 install --default-timeout=100 --no-cache-dir \
     mediapipe
 
 # ------------  Catkin workspace ----------

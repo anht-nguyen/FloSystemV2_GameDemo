@@ -1,0 +1,14 @@
+[Unit]
+Description=Auto-start Flo Simon Says Game Docker
+After=network.target docker.service
+Requires=docker.service
+
+[Service]
+User=your_username
+ExecStart=/home/your_username/start_flo_game.sh
+Restart=on-failure
+TimeoutStartSec=30
+Environment=DISPLAY=:0
+
+[Install]
+WantedBy=multi-user.target

@@ -76,8 +76,13 @@ FloSystemV2_GameDemo/
 6. Automatically startup docker and the game:
 
    1. Make startup launcher script executable: `chmod +x ./auto_startup_flogame_launcher.sh`
-
-
+   2. Move `flogame.service` to `etc/systemd/system/flogame.service` and replace `your_username` with your actual Linux username
+   3. Enable service:
+   ```sh
+  sudo systemctl daemon-reexec
+  sudo systemctl daemon-reload
+  sudo systemctl enable flogame.service
+   ```
 
 Set up AWS Polly: You need to setup [Amazon Polly](#amazon-polly) This should be as easy as
 just answering the questions during the install script.

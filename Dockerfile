@@ -46,6 +46,48 @@ RUN apt-get update && apt-get upgrade -y && \
     x11-apps \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
 
+####################  Orbbec Astra SDK & driver  ####################
+# 1) System-level deps for OpenNI2 + libuvc
+# ── prerequisites ───────────────────────────────────────────────
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        libusb-1.0-0-dev libudev-dev libglfw3-dev libopencv-dev \
+        libopenni2-dev openni2-utils unzip curl git wget bzip2 ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        ros-noetic-backward-ros \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV OPENNI2_REDIST=/usr/lib   
+# ← add once, use everywhere
+
+# ── Orbbec OpenNI 2.3.0.86 (beta-6) install ─────────────────────
+# ──   Download once – cached ────────────────────────────────────────────
+RUN curl -L -o /tmp/openni.zip \
+        https://dl.orbbec3d.com/dist/openni2/v2.3.0.86-beta6/Orbbec_OpenNI_v2.3.0.86-beta6_linux_release.zip && \
+    mkdir -p /tmp/openni && \
+    unzip -q /tmp/openni.zip -d /tmp/openni
+
+# ──  Install & clean – reruns on changes only to this stanza ───────────
+RUN set -e && \
+    cd "$(find /tmp/openni -maxdepth 1 -type d -name 'OpenNI-Linux-x64*' | head -n1)" && \
+    ./install.sh && \
+    cp -f /usr/etc/udev/rules.d/*astra.rules /etc/udev/rules.d/ || true
+
+# 4) Pull the ROS driver into your workspace and build it
+RUN git clone --depth 1 https://github.com/orbbec/ros_astra_camera.git /catkin_ws/src/ros_astra_camera
+#    (driver supports Noetic – see repo’s README) :contentReference[oaicite:0]{index=0}
+
+# 5) Re-build workspace (adds astra_camera)
+RUN /bin/bash -c "source /opt/ros/noetic/setup.bash && \
+                  cd /catkin_ws && \
+                  catkin_make -DCMAKE_BUILD_TYPE=Release"
+
+#####################################################################
+
+
 # ------------  Python user-level deps -----
 RUN pip3 install --default-timeout=100 \
     numpy \
@@ -77,7 +119,7 @@ RUN rosdep init
 RUN . /opt/ros/noetic/setup.sh && \
     rosdep update && \
     rosdep install --from-paths src --ignore-src -r -y && \
-    catkin_make -DCMAKE_BUILD_TYPE=Release
+    catkin build -DCMAKE_BUILD_TYPE=Release
 
 # ------------  source overlays -----------
 RUN echo "source /opt/ros/noetic/setup.bash"   >> /etc/bash.bashrc && \

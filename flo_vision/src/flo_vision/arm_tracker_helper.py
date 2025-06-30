@@ -24,7 +24,7 @@ class ArmTracker:
         # Tracking parameters
         self.history_length = 10
         self.swing_leteral_history_length = 8
-        self.angle_threshold = 80
+        self.angle_threshold = 60
         self.shoulder_angle_threshold = 60
         self.wrist_depth_threshold = 0.8
         self.elbow_depth_threshold = 0.3
@@ -396,7 +396,7 @@ class ArmTracker:
             if shoulder is None:
                 return False
 
-            if elbow_angle > 165 and shoulder_angle > 145 and self.is_arm_up(elbow, wrist):
+            if elbow_angle > 150 and shoulder_angle > 140 and self.is_arm_up(elbow, wrist):
                 cv2.putText(image, label, label_pos, cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
                 return True
         except:

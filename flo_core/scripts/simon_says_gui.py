@@ -77,8 +77,10 @@ class SimonGUI(QWidget):
         rospy.Subscriber("/simon_game/status", String, self._cb_status)
 
         # ── params ──────────────────────────────────────────────────
-        self.turn_timeout = int(rospy.get_param("~turn_timeout"))
-        self.total_rounds = int(rospy.get_param("~total_rounds"))
+        # self.turn_timeout = int(rospy.get_param("~turn_timeout"))
+        self.turn_timeout = int(rospy.get_param("/game_runner/turn_timeout"))
+        # self.total_rounds = int(rospy.get_param("~total_rounds"))
+        self.total_rounds = int(rospy.get_param("/game_runner/total_rounds"))
 
         # ── internal counters ───────────────────────────────────────
         self.current_turn = 0

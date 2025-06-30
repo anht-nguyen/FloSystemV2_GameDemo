@@ -301,7 +301,7 @@ class PauseAfterEvaluateState(smach.State):
 def build_sm(sequence: list[tuple[Action,Action,bool]], params, score_pub, prompt_pub, controller: GameController):
     sm = smach.StateMachine(outcomes=["GAME_OVER"])
     with sm:
-        sm.userdata.turn_idx = 0
+        sm.userdata.turn_idx = 1
         sm.userdata.score = 0
         sm.userdata.turn_timeout = params["turn_timeout"]
         sm.userdata.total_rounds = params["total_rounds"]

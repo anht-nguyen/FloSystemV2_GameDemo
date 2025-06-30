@@ -175,16 +175,26 @@ class FaceComManager:
         mouth_on           = mouths[mouth_key]["on"]
         self.current_eye_set = mouths[mouth_key]["eyes"]
 
-        eye_cfg   = eyes[self.current_eye_set]
-        eye_block = eye_cfg.get(self.current_eye_dir,
-                                eye_cfg.get("default", {}))
+        # ── pick a valid gaze direction ───────────────────────────
+        eye_cfg = eyes[self.current_eye_set]            # whole set (“standard”, …)
+        if self.current_eye_dir not in eye_cfg:
+            # Follow the JSON pointer – often "default": "center"
+            self.current_eye_dir = eye_cfg.get(
+                "default", next(k for k in eye_cfg if k != "default")
+            )
 
-        # If the JSON stores separate left/right matrices, use them; else share.
-        if "left" in eye_block:
+        eye_block = eye_cfg[self.current_eye_dir]        # guaranteed dict *or* pointer
+        # The block itself can still be a string if there are multiple indirections
+        while isinstance(eye_block, str):
+            self.current_eye_dir = eye_block
+            eye_block = eye_cfg[self.current_eye_dir]
+
+        # ── extract bit-maps ──────────────────────────────────────
+        if "on" in eye_block:                            # shared matrix for both eyes
+            left_on = right_on = eye_block["on"]
+        else:                                            # separate `"left"` / `"right"`
             left_on  = eye_block["left"]["on"]
             right_on = eye_block["right"]["on"]
-        else:
-            left_on = right_on = eye_block["on"]
 
         return (
             self._flatten(mouth_on),
@@ -263,8 +273,13 @@ class FaceComManager:
             self._reset_timer.start()
 
     def _reset_neutral(self):
-        frame = self._compose_frame("neutral")
-        self._send_pixels(frame)
+        # Build the three monochrome regions and send them with headers,
+        # exactly the same way _emotion_cb handles “happy” and “sad”.
+        mouth_b, left_b, right_b = self._compose_bits("neutral")
+        self._send_section(0, mouth_b)      # mouth
+        self._send_section(1, right_b)      # right eye
+        self._send_section(2, left_b)       # left eye
+        self._send_pixels([3, self.brightness & 0x0F])   # brightness (optional)
         self._last_state = Emotion.NEUTRAL
         self._reset_timer = None
 

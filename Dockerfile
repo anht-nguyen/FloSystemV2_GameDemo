@@ -42,6 +42,8 @@ RUN apt-get update && apt-get upgrade -y && \
  RUN apt-get update && apt-get upgrade -y && \
     apt-get install -y --no-install-recommends \
     python-is-python3 \
+    tmux \
+    x11-apps \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # ------------  Python user-level deps -----
@@ -51,9 +53,10 @@ RUN pip3 install --default-timeout=100 \
     matplotlib \
     boto3 \
     pyaudio \
-    opencv-python 
+    opencv-python \
+    absl-py
 
-RUN pip3 install --default-timeout=100 mediapipe
+RUN pip3 install --no-deps mediapipe==0.10.11 opencv-contrib-python
 
 # ------------  Catkin workspace ----------
 ENV CATKIN_WS=/catkin_ws
@@ -62,7 +65,11 @@ WORKDIR $CATKIN_WS
 
 # Copy your code (instead of git-cloning inside the container)
 #    Context path must include this Dockerfile and your repo
-COPY . /$CATKIN_WS/src/
+COPY . /$CATKIN_WS/src/ 
+
+# copy the startup script
+COPY ros_docker_auto_startup_launcher.sh /usr/local/bin/ros_docker_auto_startup_launcher.sh
+RUN chmod +x /usr/local/bin/ros_docker_auto_startup_launcher.sh
 
 # resolve rosdep and build
 RUN rosdep init 
@@ -76,4 +83,7 @@ RUN . /opt/ros/noetic/setup.sh && \
 RUN echo "source /opt/ros/noetic/setup.bash"   >> /etc/bash.bashrc && \
     echo "source /catkin_ws/devel/setup.bash" >> /etc/bash.bashrc
 
-CMD ["bash"]
+# CMD ["bash"]
+
+# set the default entrypoint (or you can use CMD instead)
+ENTRYPOINT ["/usr/local/bin/ros_docker_auto_startup_launcher.sh"]

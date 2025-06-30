@@ -48,8 +48,9 @@ RULES_SPEECH = """
 def _pick_actions(pool):
     a_left = random.choice(pool)
     a_right = random.choice(pool)
-    while len(pool) > 1 and a_left == a_right:
-        a_right = random.choice(pool)
+    # Enable different actions for left and right arms
+    # while len(pool) > 1 and a_left == a_right:
+    #     a_right = random.choice(pool)
     return a_left, a_right
 
 def _goal_cb(ud, _):
@@ -113,8 +114,7 @@ class Announce(smach.State):
         prompt = build_prompt(left, right, ud.simon_says)
         rospy.loginfo(f"Prompt: {prompt}")
         self.prompt_pub.publish(prompt)
-        # Speak the prompt using Amazon Polly
-        self.tts_client.speak(prompt)
+        
         # Publish the turn index
         self.turn_pub.publish(ud.turn_idx)
 
@@ -126,8 +126,11 @@ class Announce(smach.State):
             player_right = ud.left_action.name.lower() +"_right"
             player_left = ud.right_action.name.lower() + "_left"
             msg = String(data=f"{player_right},{player_left}")
+            # msg = String(data=f"{player_left},{player_right}")
         rospy.loginfo(f"Publishing pose command: {msg.data}")
         self.pose_cmd_pub.publish(msg)
+        # Speak the prompt using Amazon Polly
+        self.tts_client.speak(prompt)
 
         return "succeeded"
 

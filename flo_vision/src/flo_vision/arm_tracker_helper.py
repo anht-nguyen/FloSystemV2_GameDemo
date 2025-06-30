@@ -23,12 +23,13 @@ class ArmTracker:
         
         # Tracking parameters
         self.history_length = 10
-        self.swing_leteral_history_length = 8
+        self.swing_leteral_history_length = 9
         self.angle_threshold = 60
         self.shoulder_angle_threshold = 60
         self.wrist_depth_threshold = 0.8
         self.elbow_depth_threshold = 0.3
         self.side_reaching_hold_frames = 30  # 2s @ 30fps
+        self.swing_leteral_shoulder_threshold = 45  # degrees
 
     def calculate_angle(self, point1, point2, point3):
         a = np.array(point1)
@@ -280,13 +281,13 @@ class ArmTracker:
                 return False
 
             # Only track when elbow is extended
-            if elbow_angle > 150:
+            if elbow_angle > 120:
                 history.append(shoulder_angle)
                 if len(history) > self.swing_leteral_history_length:
                     history.pop(0)
 
             if len(history) == self.swing_leteral_history_length and \
-            abs(max(history) - min(history)) > self.shoulder_angle_threshold:
+            abs(max(history) - min(history)) > self.swing_leteral_shoulder_threshold:
                 cv2.putText(image, label, label_pos, cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
                 return True
         except:

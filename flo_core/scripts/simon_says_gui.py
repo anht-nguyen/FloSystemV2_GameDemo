@@ -256,8 +256,8 @@ class SimonGUI(QWidget):
         if new_state == GameState.IN_GAME:
             self.remaining_time = self.turn_timeout
             self.lbl_timer.setText(self._fmt_time(self.remaining_time))
-            if not self.ticker.isActive():
-                self.ticker.start(1000)
+            # if not self.ticker.isActive():
+            self.ticker.start(1000)
         else:
             self.ticker.stop()
             self.remaining_time = self.turn_timeout
@@ -302,6 +302,11 @@ class SimonGUI(QWidget):
         text = msg.data
         self.lbl_prompt.setText(f"Prompt: {text}")
         # intro → intro_wait trigger ----------------------------------------
+        # if self.current_state == GameState.IN_GAME:
+        #     self.remaining_time = self.turn_timeout
+        #     self.lbl_timer.setText(self._fmt_time(self.remaining_time))
+        #     # 不论之前定时器是停是走，都重新启动
+        #     self.ticker.start(1000)
         if self.current_state == GameState.INTRO:
             self.rulesReceived.emit()
 
@@ -309,8 +314,10 @@ class SimonGUI(QWidget):
         self.current_turn = msg.data
         self.lbl_turn.setText(f"Turn: {self.current_turn}/{self.total_rounds}")
         if self.current_state == GameState.IN_GAME:
+            self.ticker.stop()
             self.remaining_time = self.turn_timeout
             self.lbl_timer.setText(self._fmt_time(self.remaining_time))
+            self.ticker.start(1000)
 
     # ───────────────────────── helper methods ─────────────────────────────
 

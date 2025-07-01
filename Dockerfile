@@ -113,6 +113,14 @@ RUN pip3 install --no-deps mediapipe==0.10.11 opencv-contrib-python
     ros-noetic-rosserial-msgs \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# ------------  AWS CLI  ------------
+RUN pip3 install awscli
+RUN mkdir -p /root/.aws
+COPY certs/aws-credentials  /root/.aws/credentials
+COPY certs/aws-config       /root/.aws/config
+RUN chmod 600 /root/.aws/*
+# (Optional) declare the default region once so every boto3 call has it
+ENV AWS_DEFAULT_REGION=us-east-1
 
 # ------------  Catkin workspace ----------
 ENV CATKIN_WS=/catkin_ws

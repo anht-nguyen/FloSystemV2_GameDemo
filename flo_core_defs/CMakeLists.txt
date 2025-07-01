@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 2.8.12)
 project(flo_core_defs)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
@@ -10,6 +10,7 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   actionlib_msgs
   flo_humanoid
+  tf
 )
 
 ################################################
@@ -65,6 +66,7 @@ catkin_package(
     std_msgs
     actionlib_msgs
     flo_humanoid
+    tf
 )
 
 

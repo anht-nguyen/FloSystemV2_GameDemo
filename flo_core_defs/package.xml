@@ -15,15 +15,15 @@
   <build_export_depend>std_msgs</build_export_depend>
   <build_export_depend>flo_humanoid</build_export_depend>
   <build_export_depend>tf</build_export_depend>
+  <build_export_depend>actionlib_msgs</build_export_depend>
   <exec_depend>roscpp</exec_depend>
   <exec_depend>rospy</exec_depend>
   <exec_depend>std_msgs</exec_depend>
-  <exec_depend>flo_humanoid_defs</exec_depend>
   <exec_depend>tf</exec_depend>
   <exec_depend>python-serial</exec_depend>
   <!--Non-ROS dependencies to be brought in by ros dep-->
-  <exec_depend>python-numpy</exec_depend>
-  <exec_depend>python-matplotlib</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-matplotlib</exec_depend>
   <build_depend>actionlib_msgs</build_depend>
   <exec_depend>actionlib_msgs</exec_depend>
   <exec_depend>message_runtime</exec_depend>

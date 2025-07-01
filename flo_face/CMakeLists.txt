@@ -8,13 +8,15 @@ find_package(catkin REQUIRED COMPONENTS
   rospy
   std_msgs
   flo_core_defs        # custom message package used by Emotion.msg
+  message_generation
+  rospack
 )
 
 ##############################################################################
 # Catkin package
 ##############################################################################
 catkin_package(
-  CATKIN_DEPENDS rospy std_msgs flo_core_defs
+  CATKIN_DEPENDS rospy std_msgs flo_core_defs message_generation rospack
 )
 
 ##############################################################################

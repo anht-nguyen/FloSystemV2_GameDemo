@@ -18,7 +18,7 @@ from flo_core.action_sequence_controller import Action
 from flo_core.prompt_utils import build_prompt
 from actionlib import SimpleActionClient
 
-from polly_tts_streaming import PollyTTSStream
+from flo_core.polly_tts_streaming import PollyTTSStream
 
 
 RULES_TEXT = (

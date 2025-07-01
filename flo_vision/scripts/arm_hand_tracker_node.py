@@ -28,6 +28,8 @@ Author: 2025, FLO Robot project
 import rospy
 from sensor_msgs.msg import Image
 from std_msgs.msg import Float32, String, Header
+from std_msgs.msg import Bool
+from flo_core_defs.msg import CalibStatus      
 from flo_core_defs.msg import PoseScore
 from cv_bridge import CvBridge, CvBridgeError
 import cv2
@@ -35,7 +37,7 @@ import numpy as np
 import mediapipe as mp
 
 # Helper with the geometric logic
-from flo_vision.arm_tracker_helper import ArmTracker
+from flo_vision.arm_tracker_helper import ArmTracker, calib_check
 
 # ──────────────────────────────────────────────────────
 # MediaPipe drawing utilities
@@ -75,6 +77,18 @@ class ArmHandTrackerNode:
         # Subscriber
         rospy.Subscriber(image_topic, Image, self.image_callback, queue_size=1, buff_size=2 ** 24)
         rospy.Subscriber("~pose_command",String, self.pose_command_callback, queue_size= 1)
+
+        # ─── Calibration handshake -----------------------------------------
+        self.calib_mode = False                           # toggled by Core
+        self.calib_margin_px = rospy.get_param("~calib_margin_px", 40)
+
+        self._calib_pub = rospy.Publisher(
+            "/simon_game/calib_status", CalibStatus, queue_size=10
+        )
+        self._calib_cmd_sub = rospy.Subscriber(
+            "/simon_game/calib_cmd", Bool, self._calib_cmd_cb, queue_size=1
+        )
+
         # --------- MediaPipe initialisation ----------
         self.arm_tracker = ArmTracker()
         self.mp_pose = mp.solutions.pose

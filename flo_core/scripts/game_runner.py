@@ -14,6 +14,7 @@ import smach_ros
 from std_msgs.msg import String, Int32
 from flo_core_defs.msg import PoseScore, Emotion
 from flo_core_defs.msg import SimonCmdAction, SimonCmdGoal
+from flo_core_defs.msg import CalibStatus
 from flo_core.action_sequence_controller import Action
 from flo_core.prompt_utils import build_prompt
 from actionlib import SimpleActionClient
@@ -91,6 +92,64 @@ class Introduction:
                 return self.controller._last_intro_cmd
             rate.sleep()
 
+class CalibrationStage:
+    """
+    Drives the 'step back / forward' dialogue until flo_vision
+    reports that the full upper body + arm-over-head are in view.
+    """
+    def __init__(self, tts, prompt_pub):
+        self._tts = tts
+        self._prompt_pub = prompt_pub
+        self._status_sub = rospy.Subscriber(
+            "/simon_game/calib_status", CalibStatus, self._status_cb
+        )
+        self._ready = False
+        self._hint  = ""
+
+        # Publisher that toggles calibration mode inside flo_vision
+        self._cmd_pub = rospy.Publisher(
+            "/simon_game/calib_cmd", Bool, queue_size=1, latch=True
+        )
+
+    # ------------------------------------------------------------------
+    def _status_cb(self, msg: CalibStatus):
+        self._ready = msg.ready
+        self._hint  = msg.hint.lower()
+
+    # ------------------------------------------------------------------
+    def run(self):
+        # Tell vision we are entering calibration
+        self._cmd_pub.publish(True)
+        self._prompt_pub.publish("Let’s do a quick camera check…")
+        self._tts.speak(
+            "Before we begin, please step back until I can see your hips. "
+            "When I ask, raise both hands above your head."
+        )
+
+        rate = rospy.Rate(5)
+        last_hint = None
+        while not rospy.is_shutdown():
+            if self._ready:
+                # Success!
+                self._tts.speak("Perfect! I can see your whole upper body.")
+                self._cmd_pub.publish(False)      # drop back to game mode
+                return
+
+            # Provide live guidance only when the hint changes
+            if self._hint and self._hint != last_hint:
+                msg = {
+                    "back":    "A little farther, please.",
+                    "forward": "Come a bit closer.",
+                    "left":    "Move slightly to your left.",
+                    "right":   "Move slightly to your right.",
+                    "raise_arm": "Please raise your arm fully overhead."
+                }.get(self._hint, "")
+                if msg:
+                    rospy.loginfo(f"[CALIB] Hint: {msg}")
+                    self._prompt_pub.publish(msg)
+                    self._tts.speak(msg, queue=True)   # queue=True → non-blocking
+                    last_hint = self._hint
+            rate.sleep()
 
 class Announce(smach.State):
     def __init__(self, prompt_pub: rospy.Publisher, turn_pub: rospy.Publisher, tts_client):
@@ -534,14 +593,21 @@ class GameController:
             rospy.loginfo("[INTRO] Speaking rules speech")
             self.tts.speak(RULES_SPEECH)
 
-            # 3) Wait for GUI to press Continue / Restart
+            # 3) Wait for GUI to press Continue / Restart ---------------------------
             r = rospy.Rate(10)
             while not rospy.is_shutdown():
                 if self._last_intro_cmd == "continue":
-                    rospy.loginfo("[INTRO] Continue received → start game")
+                    rospy.loginfo("[INTRO] Continue received → run calibration")
+                    self._last_intro_cmd = None
+
+                    # ── NEW: launch calibration stage ─────────────────────────────
+                    calib = CalibrationStage(self.tts, self.prompt_pub)
+                    calib.run()                       # blocks until ready == True
+                    # ──────────────────────────────────────────────────────────────
+
+                    rospy.loginfo("[INTRO] Calibration complete → start game")
                     self.intro_done = True
                     self.intro_in_progress = False
-                    self._last_intro_cmd = None
                     # launch state-machine
                     self.running = True
                     self.sis.start()

@@ -45,6 +45,7 @@ class GameState(str, Enum):
     IDLE = "Idle"
     INTRO = "Intro"
     INTRO_WAIT = "Intro_Wait"
+    CALIBRATING = "Calibrating"
     IN_GAME = "InGame"
     PAUSED = "Paused"
     GAME_OVER = "GameOver"
@@ -182,6 +183,7 @@ class SimonGUI(QWidget):
         self.s_intro = QState()
         self.s_intro_wait = QState()
         self.s_in_game = QState()
+        self.s_calibrating = QState()
         self.s_paused = QState()
         self.s_game_over = QState()
         self.s_terminated = QState()
@@ -189,6 +191,7 @@ class SimonGUI(QWidget):
         self.machine.addState(self.s_idle)
         self.machine.addState(self.s_intro)
         self.machine.addState(self.s_intro_wait)
+        self.machine.addState(self.s_calibrating)
         self.machine.addState(self.s_in_game)
         self.machine.addState(self.s_paused)
         self.machine.addState(self.s_game_over)
@@ -200,8 +203,10 @@ class SimonGUI(QWidget):
 
         self.s_intro.addTransition(self.rulesReceived, self.s_intro_wait)
 
-        self.s_intro_wait.addTransition(self.continueClicked, self.s_in_game)
+        self.s_intro_wait.addTransition(self.continueClicked, self.s_calibrating)
         self.s_intro_wait.addTransition(self.stopClicked, self.s_game_over)
+
+        self.s_calibrating.addTransition(self.rulesReceived, self.s_in_game)  # Calibrating → InGame
 
         self.s_in_game.addTransition(self.pauseClicked, self.s_paused)
         self.s_in_game.addTransition(self.stopClicked, self.s_game_over) # Stop ⇒ Game Over
@@ -223,6 +228,7 @@ class SimonGUI(QWidget):
         self.s_idle.entered.connect(lambda: self._on_enter_state(GameState.IDLE))
         self.s_intro.entered.connect(lambda: self._on_enter_state(GameState.INTRO))
         self.s_intro_wait.entered.connect(lambda: self._on_enter_state(GameState.INTRO_WAIT))
+        self.s_calibrating.entered.connect(lambda: self._on_enter_state(GameState.CALIBRATING))
         self.s_in_game.entered.connect(lambda: self._on_enter_state(GameState.IN_GAME))
         self.s_paused.entered.connect(lambda: self._on_enter_state(GameState.PAUSED))
         self.s_game_over.entered.connect(lambda: self._on_enter_state(GameState.GAME_OVER)) 

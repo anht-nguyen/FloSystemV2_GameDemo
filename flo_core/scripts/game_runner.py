@@ -48,8 +48,9 @@ RULES_SPEECH = """
 def _pick_actions(pool):
     a_left = random.choice(pool)
     a_right = random.choice(pool)
-    while len(pool) > 1 and a_left == a_right:
-        a_right = random.choice(pool)
+    # Enable different actions for left and right arms
+    # while len(pool) > 1 and a_left == a_right:
+    #     a_right = random.choice(pool)
     return a_left, a_right
 
 def _goal_cb(ud, _):
@@ -101,6 +102,7 @@ class Announce(smach.State):
         self.prompt_pub = prompt_pub
         self.turn_pub = turn_pub
         self.tts_client = tts_client
+        self.pose_cmd_pub = rospy.Publisher("/arm_hand_tracker/pose_command", String, queue_size=1)
 
     def execute(self, ud):
         left = ud.left_action.name if ud.left_action else ""
@@ -112,10 +114,24 @@ class Announce(smach.State):
         prompt = build_prompt(left, right, ud.simon_says)
         rospy.loginfo(f"Prompt: {prompt}")
         self.prompt_pub.publish(prompt)
-        # Speak the prompt using Amazon Polly
-        self.tts_client.speak(prompt)
+        
         # Publish the turn index
         self.turn_pub.publish(ud.turn_idx)
+
+        if not ud.simon_says:
+            # If it is not a Simon Says turn, we will let camera detect static
+            msg = String(data="static")
+        else:
+            # If it is a Simon Says turn, we will let camera detect the left and right actions
+            player_right = ud.left_action.name.lower() +"_right"
+            player_left = ud.right_action.name.lower() + "_left"
+            msg = String(data=f"{player_right},{player_left}")
+            # msg = String(data=f"{player_left},{player_right}")
+        rospy.loginfo(f"Publishing pose command: {msg.data}")
+        self.pose_cmd_pub.publish(msg)
+        # Speak the prompt using Amazon Polly
+        self.tts_client.speak(prompt)
+
         return "succeeded"
 
 # class WaitForPose(smach.State):
@@ -288,7 +304,7 @@ class PauseAfterEvaluateState(smach.State):
 def build_sm(sequence: list[tuple[Action,Action,bool]], params, score_pub, prompt_pub, controller: GameController):
     sm = smach.StateMachine(outcomes=["GAME_OVER"])
     with sm:
-        sm.userdata.turn_idx = 0
+        sm.userdata.turn_idx = 1
         sm.userdata.score = 0
         sm.userdata.turn_timeout = params["turn_timeout"]
         sm.userdata.total_rounds = params["total_rounds"]

@@ -4,8 +4,8 @@ from flo_core_defs.msg import PoseScore
 class MiniGameRunner:
     def __init__(self):
         # Read duration and threshold from ROS parameters
-        self.duration = rospy.get_param('~duration', 5.0)
-        self.threshold = rospy.get_param('~threshold', 0.5)
+        self.duration = rospy.get_param('~duration')
+        self.threshold = rospy.get_param('~threshold')
 
         rospy.loginfo(f"[MiniGameRunner] Starting: duration={self.duration}s, threshold={self.threshold*100:.0f}%")
 

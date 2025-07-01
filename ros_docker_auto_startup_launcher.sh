@@ -20,9 +20,9 @@ tmux new-window -t ros:1 -n robot_sim 'roslaunch flo_core full_robot_arm_sim.lau
 sleep 15
 tmux new-window -t ros:2 -n camera 'roslaunch astra_camera astra.launch' # uncomment and complete with camera launch file
 sleep 2
-tmux new-window -t ros:3 -n vision #'rosrun flo_vision arm_hand_tracker_node.py _image:=usb_cam/image_raw  _preview:=true _pose:=static' #uncomment to run the arm hand tracker node
+tmux new-window -t ros:3 -n vision 'rosrun flo_vision arm_hand_tracker_node.py _image:=/camera/color/image_raw _preview:=true _pose:=static' #uncomment to run the arm hand tracker node
 sleep 2
-tmux new-window -t ros:4 -n vision_monitor #'rostopic echo /arm_hand_tracker/pose_score' #uncomment to monitor the arm hand tracker node
+tmux new-window -t ros:4 -n vision_monitor 'rostopic echo /arm_hand_tracker/pose_score' #uncomment to monitor the arm hand tracker node
 sleep 5
 tmux new-window -t ros:5 -n game_runner 'roslaunch flo_core simonsays_launcher_prod.launch' #launch the game runner
 

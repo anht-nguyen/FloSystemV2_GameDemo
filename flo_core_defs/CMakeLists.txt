@@ -10,6 +10,7 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   actionlib_msgs
   flo_humanoid
+  tf
 )
 
 ################################################
@@ -64,6 +65,7 @@ catkin_package(
     std_msgs
     actionlib_msgs
     flo_humanoid
+    tf
 )
 
 

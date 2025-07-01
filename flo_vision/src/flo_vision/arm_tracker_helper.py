@@ -556,3 +556,64 @@ class ArmTracker:
         except:
             pass
         return False
+    
+    def kpts_dict(self, landmarks, H, W):
+        """Return {name: (x_px, y_px, score)} for the main joints we care about."""
+        mp_kp = self.mp_pose.PoseLandmark          # enum
+        def pt(l):
+            return (int(l.x * W), int(l.y * H), l.visibility)
+        return {
+            "left_hip":  pt(landmarks[mp_kp.LEFT_HIP]),
+            "right_hip": pt(landmarks[mp_kp.RIGHT_HIP]),
+            "left_wrist": pt(landmarks[mp_kp.LEFT_WRIST]),
+            "right_wrist": pt(landmarks[mp_kp.RIGHT_WRIST]),
+            "nose": pt(landmarks[mp_kp.NOSE]),
+        }
+
+    
+
+# ─────────────────────────────────────────────────────────────
+#  New util: returns (ready, hint)
+# ─────────────────────────────────────────────────────────────
+def calib_check(kps, img_h, img_w, margin=40):
+    """
+    kps : dict {name: (x,y,score)} – MUST include
+          "left_hip", "right_hip", "left_wrist", "right_wrist"
+          and "nose" (for head top reference)
+
+    Assumes wrists are already above nose if the user raised arms.
+    """
+    # skip if confidence low
+    req = ["left_hip", "right_hip", "left_wrist", "right_wrist"]
+    if any(kps[p][2] < 0.4 for p in req):
+        return False, "raise_arm"
+
+    hips_y    = [kps["left_hip"][1],   kps["right_hip"][1]]
+    wrists_y  = [kps["left_wrist"][1], kps["right_wrist"][1]]
+    top_y     = int(min(wrists_y))
+    bottom_y  = int(max(hips_y))
+
+    # Horizontal extent
+    xs = [kps[p][0] for p in req]
+    left_x, right_x = int(min(xs)), int(max(xs))
+
+    ready  = (
+        top_y    > margin and
+        bottom_y < img_h - margin and
+        left_x   > margin and
+        right_x  < img_w - margin
+    )
+
+    if ready:
+        return True, ""
+
+    # Decide hint (pick the biggest violation)
+    if bottom_y >= img_h - margin:
+        return False, "back"
+    if top_y <= margin:
+        return False, "forward"            # too small ⇒ come closer
+    if left_x <= margin:
+        return False, "right"
+    if right_x >= img_w - margin:
+        return False, "left"
+    return False, "raise_arm"

@@ -100,6 +100,11 @@ class ArmHandTrackerNode:
                                          max_num_hands=2)
 
         rospy.loginfo("arm_hand_tracker_node initialised – awaiting images…")
+    
+    def _calib_cmd_cb(self, msg: Bool):
+        """Core sets calib mode with a Bool."""
+        self.calib_mode = msg.data
+    
     def calculate_action_similarity(self, detected_gestures, required_gestures):
         if not required_gestures:
             return 0.0, False
@@ -197,6 +202,27 @@ class ArmHandTrackerNode:
         image_bgr = frame  # keep original for drawing
 
         h, w = image_bgr.shape[:2]
+
+        # ───────────────────── Calibration branch ──────────────────────────
+        if self.calib_mode and pose_results.pose_landmarks:
+            # Convert Landmarks → dict of (x,y,score) in pixel coords
+            kps = self.arm_tracker.kpts_dict(
+                pose_results.pose_landmarks.landmark, h, w
+            )                             # helper you’ll add in ArmTrackerHelper
+            ready, hint = calib_check(kps, h, w, self.calib_margin_px)
+
+            self._calib_pub.publish(CalibStatus(ready=ready, hint=hint))
+
+            if self.preview:                              # optional HUD overlay
+                txt = "OK" if ready else hint.upper()
+                color = (0, 255, 0) if ready else (0, 0, 255)
+                cv2.putText(image_bgr, f"CALIB: {txt}", (20, 40),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1.2, color, 3)
+
+            if not ready:
+                return              # skip normal gesture logic while calibrating
+            # else: fall through → publish angles / gestures as usual
+
 
         # ------------------------------------------------------------------
         #               DRAW POSE & HAND LANDMARKS (NEW)

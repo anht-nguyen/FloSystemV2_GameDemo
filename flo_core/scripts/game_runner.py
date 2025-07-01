@@ -11,7 +11,7 @@ import rospy
 import smach
 import smach_ros
 
-from std_msgs.msg import String, Int32
+from std_msgs.msg import String, Int32, Bool
 from flo_core_defs.msg import PoseScore, Emotion
 from flo_core_defs.msg import SimonCmdAction, SimonCmdGoal
 from flo_core_defs.msg import CalibStatus

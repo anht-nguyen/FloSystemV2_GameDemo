@@ -22,7 +22,7 @@ RUN apt-get update && apt-get upgrade -y && \
         # --- Utilities ---
         python3-pip python3-pyqt5 alsa-utils portaudio19-dev \
         build-essential git python3-rosdep python3-catkin-tools \
-        python3-matplotlib python3-numpy tmux x11-apps htop \
+        python3-matplotlib python3-numpy tmux x11-apps htop python3-protobuf\
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # ---------- Python packages ----------
@@ -34,7 +34,7 @@ RUN pip3 install --default-timeout=100 \
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         ros-noetic-image-geometry \
-        ros-noetic-rgbd-launch \  # keeps rgbd for completeness; safe to drop if un-needed
+        ros-noetic-rgbd-launch \  
         udev \
         ros-noetic-rosserial-arduino ros-noetic-rosserial-client \
         ros-noetic-rosserial-server ros-noetic-rosserial-python \
@@ -47,7 +47,7 @@ RUN mkdir -p /root/.aws
 COPY certs/aws-credentials /root/.aws/credentials
 COPY certs/aws-config       /root/.aws/config
 RUN chmod 600 /root/.aws/*
-ENV AWS_DEFAULT_REGION=us-east-1     # optional convenience
+ENV AWS_DEFAULT_REGION=us-east-1    
 
 # ---------- Catkin workspace ----------
 ENV CATKIN_WS=/catkin_ws

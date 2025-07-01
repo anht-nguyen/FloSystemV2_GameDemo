@@ -602,10 +602,11 @@ class GameController:
 
                     # ── NEW: launch calibration stage ─────────────────────────────
                     calib = CalibrationStage(self.tts, self.prompt_pub)
-                    calib_thread = threading.Thread(target=calib.run)
-                    calib_thread.start()
-                    # ──────────────────────────────────────────────────────────────
-
+                    # calib_thread = threading.Thread(target=calib.run)
+                    # calib_thread.start()
+                    calib.run()    # <-- blocks until vision reports ready
+                    
+                    # ────────────────────────────────
                     rospy.loginfo("[INTRO] Calibration complete → start game")
                     self.intro_done = True
                     self.intro_in_progress = False

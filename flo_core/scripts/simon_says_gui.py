@@ -90,6 +90,7 @@ class SimonGUI(QWidget):
         self.remaining_time = self.turn_timeout
         self.current_state: GameState = GameState.IDLE
         self.ready_for_start = False        # ← only true after “Waiting…” seen
+        self.calib_ready = False          # set True after “Perfect!” prompt
 
         # ── GUI widgets ─────────────────────────────────────────────
         self._build_ui()
@@ -325,7 +326,9 @@ class SimonGUI(QWidget):
 
         # Calibration finished → Calibrating → InGame
         elif self.current_state == GameState.CALIBRATING and text.lower().startswith("perfect"):
-            self.calibDone.emit()
+            self.calib_ready = True
+            self._update_buttons()  # glow Continue
+            self.calibDone.emit()   # advance FSM when they click Continue
 
     def _cb_turn(self, msg: Int32):
         self.current_turn = msg.data
@@ -384,6 +387,8 @@ class SimonGUI(QWidget):
             self.btn_restart.setEnabled(True)
         elif st == GameState.CALIBRATING:
             self.btn_stop.setEnabled(True)
+            if self.calib_ready:             # ← only after “Perfect!”
+                self.btn_continue.setEnabled(True)
 
 
         # Quit always enabled -------------------------------------------------

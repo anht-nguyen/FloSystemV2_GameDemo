@@ -73,24 +73,32 @@ class ArmHandTrackerNode:
         self.pub_gesture = rospy.Publisher("~gesture", String, queue_size=10)
         self.pub_posescore = rospy.Publisher("~pose_score", PoseScore, queue_size=10)
         # Subscriber
-        rospy.Subscriber(image_topic, Image, self.image_callback, queue_size=1, buff_size=2 ** 24)
-        rospy.Subscriber("~pose_command",String, self.pose_command_callback, queue_size= 1)
+
         # --------- MediaPipe initialisation ----------
         self.arm_tracker = ArmTracker()
         self.mp_pose = mp.solutions.pose
         self.mp_hands = mp.solutions.hands
-        self.pose = self.mp_pose.Pose(min_detection_confidence=0.5,
-                                      min_tracking_confidence=0.5)
+        self.pose = self.mp_pose.Pose(model_complexity = 0,
+                                      min_detection_confidence=0.6,
+                                      min_tracking_confidence=0.6)
         self.hands = self.mp_hands.Hands(min_detection_confidence=0.5,
-                                         min_tracking_confidence=0.5,
+                                         min_tracking_confidence=0.5, 
                                          max_num_hands=2)
-
+        rospy.Subscriber(image_topic, Image, self.image_callback, queue_size=1, buff_size=2 ** 24)
+        rospy.Subscriber("~pose_command",String, self.pose_command_callback, queue_size= 1)
         rospy.loginfo("arm_hand_tracker_node initialised – awaiting images…")
+
+        self.skip_frames = 1
+        self.frame_count = 0
+
+
+
     def calculate_action_similarity(self, detected_gestures, required_gestures):
         if not required_gestures:
             return 0.0, False
            
-    
+            rospy.Subscriber(image_topic, Image, self.image_callback, queue_size=1, buff_size=2 ** 24)
+        rospy.Subscriber("~pose_command",String, self.pose_command_callback, queue_size= 1)
         left_hand_actions = [g for g in required_gestures if 'left' in g or g in ['d_wave_left']]
         right_hand_actions = [g for g in required_gestures if 'right' in g or g in ['d_wave_right']]
         general_actions = [g for g in required_gestures if g not in left_hand_actions and g not in right_hand_actions]
@@ -159,11 +167,23 @@ class ArmHandTrackerNode:
 
     def image_callback(self, msg: Image):
         """Main image processing pipeline."""
+        # try:
+        #     encoding = "bgr8" if msg.encoding.endswith("bgr8") else "rgb8"
+        #     frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding=encoding)
+        #     if encoding == "rgb8":
+        #         frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        # except CvBridgeError as e:
+        #     rospy.logwarn(f"CvBridge conversion failed: {e}")
+        #     return
+        # self.frame_count = (self.frame_count + 1) % (self.skip_frames + 1)
+        # if self.frame_count != 0:
+        #     # frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
+        #     # self.preview_frame = cv2.flip(frame, 1)
+        #     return
+        
         try:
-            encoding = "bgr8" if msg.encoding.endswith("bgr8") else "rgb8"
-            frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding=encoding)
-            if encoding == "rgb8":
-                frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+            # 直接统一用 bgr8，一次到位
+            frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
         except CvBridgeError as e:
             rospy.logwarn(f"CvBridge conversion failed: {e}")
             return

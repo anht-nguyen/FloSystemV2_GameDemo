@@ -32,7 +32,7 @@ services:
       - /dev/snd:/dev/snd             # for audio devices
       - /dev/ttyACM0:/dev/ttyACM0     # for serial devices (e.g., Arduino)
       - /dev/bus/usb:/dev/bus/usb
-      # - /dev/video0:/dev/video0 # uncomment if you want to use a specific video device
+      - /dev/video0:/dev/video0 # uncomment if you want to use a specific video device
     working_dir: /catkin_ws
     # command: >
     #   bash -lc "

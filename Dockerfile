@@ -141,6 +141,7 @@ RUN chmod +x /usr/local/bin/ros_docker_auto_startup_launcher.sh
     ros-noetic-audio-common \
     python3-protobuf \
     python3-tk \
+    htop \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 

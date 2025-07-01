@@ -144,6 +144,22 @@ RUN chmod +x /usr/local/bin/ros_docker_auto_startup_launcher.sh
  && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 
+# ------------  Intel GPU support -----------
+# Intel GPU support for VA-API (video acceleration)
+#   (for OpenNI2, OpenCV, etc.)
+#   Note: this is for Intel integrated GPUs, not NVIDIA
+#   (NVIDIA support is not included in this image)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1-mesa-dri \
+    vainfo \
+    libva-drm2 \
+    libva-x11-2 \
+    intel-media-va-driver-non-free \
+ && rm -rf /var/lib/apt/lists/*
+
+ENV LIBVA_DRIVER_NAME=iHD
+ENV LIBVA_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri
+
 # resolve rosdep and build
 RUN rosdep init 
 

@@ -7,7 +7,7 @@ services:
     image: flo_system_v2_game_demo:latest
     container_name: flo_game
     privileged: true          # required for USB devices and camera access
-    # network_mode: host               # ROS networking on host
+    network_mode: host               # ROS networking on host
     environment:
       - DISPLAY=${DISPLAY}           # forward X11
       - XAUTHORITY=/home/${USER}/.Xauthority
@@ -15,6 +15,8 @@ services:
       - LIBGL_ALWAYS_INDIRECT=0
       - UDEV=1
       - OPENNI2_REDIST=/usr/lib           # lets OpenNI find its .so at runtime
+      - LIBVA_DRIVER_NAME=iHD     # Intel VA-API driver
+      - LIBVA_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix:ro # GUI access
       - ${XAUTHORITY}:/home/${USER}/.Xauthority:ro
@@ -32,6 +34,7 @@ services:
       - /dev/snd:/dev/snd             # for audio devices
       - /dev/ttyACM0:/dev/ttyACM0     # for serial devices (e.g., Arduino)
       - /dev/bus/usb:/dev/bus/usb
+      - /dev/dri:/dev/dri          # Intel/VA-API GPU passthrough
       # - /dev/video0:/dev/video0 # uncomment if you want to use a specific video device
     working_dir: /catkin_ws
     # command: >

@@ -31,6 +31,8 @@ class ArmTracker:
         self.side_reaching_hold_frames = 30  # 2s @ 30fps
         self.swing_leteral_shoulder_threshold = 45  # degrees
 
+        self.mp_pose = mp_pose
+
     def calculate_angle(self, point1, point2, point3):
         a = np.array(point1)
         b = np.array(point2)

@@ -147,7 +147,7 @@ class CalibrationStage:
                 if msg:
                     rospy.loginfo(f"[CALIB] Hint: {msg}")
                     self._prompt_pub.publish(msg)
-                    self._tts.speak(msg, queue=True)   # queue=True → non-blocking
+                    self._tts.speak(msg)   # queue=True → non-blocking
                     last_hint = self._hint
             rate.sleep()
 
@@ -602,7 +602,8 @@ class GameController:
 
                     # ── NEW: launch calibration stage ─────────────────────────────
                     calib = CalibrationStage(self.tts, self.prompt_pub)
-                    calib.run()                       # blocks until ready == True
+                    calib_thread = threading.Thread(target=calib.run)
+                    calib_thread.start()
                     # ──────────────────────────────────────────────────────────────
 
                     rospy.loginfo("[INTRO] Calibration complete → start game")

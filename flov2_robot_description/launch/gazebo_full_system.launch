@@ -1,4 +1,5 @@
 <launch>
+	<arg name="gui" default="false"/>
 	<arg name="arg_x" default="0.00" />
 	<arg name="arg_y" default="0.00" />
 	<arg name="arg_z" default="0.00" />
@@ -13,7 +14,9 @@
 	<!-- <param name="camera_description" textfile="$(find camera)/urdf/camera.urdf"/> -->
 	
 	<!--spawn a empty gazebo world-->
-	<include file="$(find gazebo_ros)/launch/empty_world.launch" />
+	<include file="$(find gazebo_ros)/launch/empty_world.launch">
+		<arg name="gui" value="$(arg gui)" />
+	</include>
 	<node name="tf_footprint_base" pkg="tf" type="static_transform_publisher" args="0 0 0 0 0 0 base_link base_footprint 40" />
 	
 	

@@ -135,11 +135,14 @@ COPY . /$CATKIN_WS/src/
 COPY ros_docker_auto_startup_launcher.sh /usr/local/bin/ros_docker_auto_startup_launcher.sh
 RUN chmod +x /usr/local/bin/ros_docker_auto_startup_launcher.sh
 
-# ------------  Audio support -----------
+# ------------  Audio & camera support -----------
  RUN apt-get update && apt-get upgrade -y && \
     apt-get install -y --no-install-recommends \
     ros-noetic-audio-common \
+    python3-protobuf \
+    python3-tk \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
+
 
 # resolve rosdep and build
 RUN rosdep init 

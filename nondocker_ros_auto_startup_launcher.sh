@@ -15,7 +15,7 @@ tmux new-session -d -s ros 'roscore'
 sleep 5
 
 # 2) In new tmux windows, launch your files
-tmux new-window -t ros:1 -n robot_sim 'roslaunch flo_core full_robot_arm_sim.launch' #launch the robot simulation
+tmux new-window -t ros:1 -n robot_sim 'roslaunch flo_core full_robot_arm_sim.launch show_gz_gui:=true use_rviz:=true' #launch the robot simulation
 sleep 2
 tmux new-window -t ros:2 -n camera 'roslaunch flo_vision usb_cam_launcher.launch' #'roslaunch astra_camera astra.launch' # uncomment and complete with camera launch file
 sleep 2

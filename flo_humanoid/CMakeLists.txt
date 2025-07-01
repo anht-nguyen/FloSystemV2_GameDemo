@@ -1,7 +1,7 @@
 ################################################################################
 # Set minimum required version of cmake, project name and compile options
 ################################################################################
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 2.8.12)
 project(flo_humanoid)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
@@ -16,6 +16,8 @@ find_package(catkin REQUIRED
     std_msgs
     message_generation
     dynamixel_sdk
+    message_runtime
+    rospack
 )
 
 ################################################################################
@@ -51,6 +53,7 @@ catkin_package(
     roscpp
     std_msgs
     dynamixel_sdk
+    message_runtime
 #  DEPENDS system_lib
 )
 

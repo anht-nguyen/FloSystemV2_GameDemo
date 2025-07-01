@@ -21,9 +21,11 @@ services:
       - /dev:/dev                     # for camera & devices
       - ./certs/aws-credentials:/root/.aws/credentials:ro
       - ./certs/aws-config:/root/.aws/config:ro
+      # - ${HOME}/.aws:/root/.aws:ro
       - /lib/udev:/lib/udev:ro         # udev rules
       - /etc/udev/rules.d:/etc/udev/rules.d  # your udev rules, if needed
       - /dev/bus/usb:/dev/bus/usb     # pass through USB bus for Astra camera
+      - /run/udev:/run/udev
     devices:
       - /dev/bus/usb:/dev/bus/usb
       # - /dev/video0:/dev/video0 # uncomment if you want to use a specific video device

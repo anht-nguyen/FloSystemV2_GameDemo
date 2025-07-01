@@ -1,4 +1,3 @@
-# docker-compose.yml
 services:
   flo_robot:
     build:
@@ -6,42 +5,29 @@ services:
       dockerfile: Dockerfile
     image: flo_system_v2_game_demo:latest
     container_name: flo_game
-    privileged: true          # required for USB devices and camera access
-    # network_mode: host               # ROS networking on host
+    privileged: true              # required for /dev/video0 & audio
     environment:
-      - DISPLAY=${DISPLAY}           # forward X11
+      - DISPLAY=${DISPLAY}
       - XAUTHORITY=/home/${USER}/.Xauthority
       - QT_X11_NO_MITSHM=1
       - LIBGL_ALWAYS_INDIRECT=0
-      - UDEV=1
-      - OPENNI2_REDIST=/usr/lib           # lets OpenNI find its .so at runtime
+      - UDEV=1                    # still useful for hot-plugged devices
     volumes:
-      - /tmp/.X11-unix:/tmp/.X11-unix:ro # GUI access
+      - /tmp/.X11-unix:/tmp/.X11-unix:ro
       - ${XAUTHORITY}:/home/${USER}/.Xauthority:ro
-      - /dev:/dev                     # for camera & devices
       - ./certs/aws-credentials:/root/.aws/credentials:ro
       - ./certs/aws-config:/root/.aws/config:ro
-      # - ${HOME}/.aws:/root/.aws:ro
-      - /lib/udev:/lib/udev:ro         # udev rules
-      - /etc/udev/rules.d:/etc/udev/rules.d  # your udev rules, if needed
-      - /dev/bus/usb:/dev/bus/usb     # pass through USB bus for Astra camera
-      - /run/udev:/run/udev
-      - /dev/snd:/dev/snd             # for audio devices
-      - /dev/ttyACM0:/dev/ttyACM0     # for serial devices (e.g., Arduino)
+      - /dev/video0:/dev/video0           # pass webcam
+      - /dev/snd:/dev/snd                 # pass audio
     devices:
-      - /dev/snd:/dev/snd             # for audio devices
-      - /dev/ttyACM0:/dev/ttyACM0     # for serial devices (e.g., Arduino)
-      - /dev/bus/usb:/dev/bus/usb
-      - /dev/video0:/dev/video0 # uncomment if you want to use a specific video device
+      - /dev/video0:/dev/video0           # explicit webcam access
+      - /dev/snd:/dev/snd                 # ALSA devices
+      - /dev/ttyACM0:/dev/ttyACM0         # keep serial (Arduino, etc.)
     working_dir: /catkin_ws
-    # command: >
-    #   bash -lc "
-    #     source /opt/ros/noetic/setup.bash 
-    #     && source /catkin_ws/devel/setup.bash
-    #     # Add commands to launch your ROS nodes or applications here
-    #     # && ...
-    #   "
     ipc: host
     tty: true
     stdin_open: true
-    entrypoint: [ "bash", "-c", "/usr/local/bin/ros_docker_auto_startup_launcher.sh && exec tail -f /dev/null" ]
+    entrypoint:
+      - bash
+      - -c
+      - "/usr/local/bin/ros_docker_auto_startup_launcher.sh && exec tail -f /dev/null"

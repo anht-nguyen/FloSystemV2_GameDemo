@@ -63,6 +63,7 @@ class SimonGUI(QWidget):
     restartClicked = pyqtSignal()
     quitClicked = pyqtSignal()
     rulesReceived = pyqtSignal()  # emitted when rules prompt arrives
+    calibDone      = pyqtSignal() 
 
     # ───────────────────────── GUI lifecycle ──────────────────────────
 
@@ -206,7 +207,7 @@ class SimonGUI(QWidget):
         self.s_intro_wait.addTransition(self.continueClicked, self.s_calibrating)
         self.s_intro_wait.addTransition(self.stopClicked, self.s_game_over)
 
-        self.s_calibrating.addTransition(self.rulesReceived, self.s_in_game)  # Calibrating → InGame
+        self.s_calibrating.addTransition(self.calibDone, self.s_in_game)  # Calibrating → InGame
 
         self.s_in_game.addTransition(self.pauseClicked, self.s_paused)
         self.s_in_game.addTransition(self.stopClicked, self.s_game_over) # Stop ⇒ Game Over
@@ -221,7 +222,7 @@ class SimonGUI(QWidget):
         self.s_game_over.addTransition(self.restartClicked, self.s_idle)
 
         # global transitions ---------------------------------------------------
-        for st in (self.s_idle, self.s_intro, self.s_intro_wait, self.s_in_game, self.s_paused, self.s_game_over):
+        for st in (self.s_idle, self.s_intro, self.s_intro_wait, self.s_calibrating, self.s_in_game, self.s_paused, self.s_game_over):
             st.addTransition(self.quitClicked, self.s_terminated)
 
         # ── state‑entry callbacks --------------------------------------------
@@ -256,6 +257,8 @@ class SimonGUI(QWidget):
     def _on_enter_state(self, new_state: GameState):
         self.current_state = new_state
         self.lbl_status.setText(f"Status: {new_state.value}")
+        if new_state == GameState.CALIBRATING:
+            self.lbl_prompt.setText("Calibrating… please follow the on-screen hints.")
         rospy.loginfo(f"[GUI] → {new_state.value}")
 
         # manage countdown ---------------------------------------------------
@@ -286,6 +289,9 @@ class SimonGUI(QWidget):
             self.ticker.stop()
             self.remaining_time = self.turn_timeout
             self.lbl_timer.setText(self._fmt_time(self.remaining_time))
+        
+
+
 
         self._update_buttons()
 
@@ -311,10 +317,15 @@ class SimonGUI(QWidget):
         # if self.current_state == GameState.IN_GAME:
         #     self.remaining_time = self.turn_timeout
         #     self.lbl_timer.setText(self._fmt_time(self.remaining_time))
-        #     # 不论之前定时器是停是走，都重新启动
+        #     # Regardless of whether the timer was stopped or running before, always restart it
         #     self.ticker.start(1000)
+        
         if self.current_state == GameState.INTRO:
             self.rulesReceived.emit()
+
+        # Calibration finished → Calibrating → InGame
+        elif self.current_state == GameState.CALIBRATING and text.lower().startswith("perfect"):
+            self.calibDone.emit()
 
     def _cb_turn(self, msg: Int32):
         self.current_turn = msg.data
@@ -369,8 +380,11 @@ class SimonGUI(QWidget):
             self.btn_continue.setEnabled(True)
             self.btn_stop.setEnabled(True)
             # self.btn_restart.setEnabled(True)
-        elif st == GameState.GAME_OVER:          # ← NEW
+        elif st == GameState.GAME_OVER:          
             self.btn_restart.setEnabled(True)
+        elif st == GameState.CALIBRATING:
+            self.btn_stop.setEnabled(True)
+
 
         # Quit always enabled -------------------------------------------------
         self.btn_quit.setEnabled(True)

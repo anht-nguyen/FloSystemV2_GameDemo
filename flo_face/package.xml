@@ -34,6 +34,7 @@
   <build_export_depend>std_msgs</build_export_depend>
   <build_export_depend>flo_core_defs</build_export_depend>
   <build_export_depend>rospack</build_export_depend>
+  <build_export_depend>message_generation</build_export_depend>
 
   <!-- Run‑time dependencies -->
   <exec_depend>message_runtime</exec_depend>
@@ -41,6 +42,7 @@
   <exec_depend>std_msgs</exec_depend>
   <exec_depend>flo_core_defs</exec_depend>
   <exec_depend>rospack</exec_depend>
+  <exec_depend>message_generation</exec_depend>
 
   <!-- Optional test dependencies -->
   <test_depend>rostest</test_depend>

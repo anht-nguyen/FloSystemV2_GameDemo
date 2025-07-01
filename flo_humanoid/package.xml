@@ -23,6 +23,8 @@
   <depend>std_msgs</depend>
   <depend>dynamixel_sdk</depend>
   <build_depend>message_generation</build_depend>
+  <build_depend>rospack</build_depend>
+  <build_depend>message_runtime</build_depend>
   <exec_depend>message_runtime</exec_depend>
 
   <!-- Export section for non-catkin CMake config, if ever needed -->

@@ -1,0 +1,35 @@
+<!-- flo_humanoid/launch/read_write_arms.launch -->
+<launch>
+  <!--   user-tunable arguments  -->
+  <arg name="port"      default="/dev/ttyUSB0"/>
+  <arg name="baudrate"  default="57600"/>
+  <arg name="left_ids"  default="[111,112,121,122]"/>   <!-- verify -->
+  <arg name="right_ids" default="[211,212,221,222]"/>   <!-- verify -->
+
+  <!--   parameters on the server  -->
+  <param name="port"     value="$(arg port)"/>
+  <param name="baudrate" value="$(arg baudrate)" type="int"/>
+
+  <!-- split IDs so higher layers can reuse the map -->
+  <rosparam param="left_arm_ids">$(arg left_ids)</rosparam>
+  <rosparam param="right_arm_ids">$(arg right_ids)</rosparam>
+
+  <!-- per-joint zero offsets (degrees or rad, match your driver) -->
+  <rosparam file="$(find flo_humanoid)/config/dynamixel_offsets.yaml"/>
+
+  <!-- joint-name ↔︎ ID dictionary -->
+  <rosparam file="$(find flo_humanoid)/config/dynamixel_ids.yaml"/>
+
+  <!--   driver node itself -->
+  <node pkg="flo_humanoid"
+        type="read_write_arms"
+        name="read_write_arms"
+        output="screen"/>
+
+  <!-- publishes aggregated /joint_states so MoveIt sees hardware   -->
+  <node pkg="joint_state_publisher"
+        type="joint_state_publisher"
+        name="joint_state_publisher">
+    <param name="use_gui" value="false"/>
+  </node>
+</launch>

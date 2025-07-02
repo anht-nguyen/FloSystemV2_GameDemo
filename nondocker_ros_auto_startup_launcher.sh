@@ -23,7 +23,16 @@ tmux new-window -t ros:3 -n vision 'roslaunch flo_vision arm_hand_tracker_launch
 sleep 2
 tmux new-window -t ros:4 -n vision_monitor 'rostopic echo /arm_hand_tracker/pose_score' #uncomment to monitor the arm hand tracker node
 sleep 5
-tmux new-window -t ros:5 -n game_runner 'roslaunch flo_core simonsays_launcher_prod.launch' #launch the game runner
+tmux new-window -t ros:5 -n hw_if       'roslaunch flo_humanoid dual_arm_hardware.launch'
+sleep 2
+tmux new-window -t ros:6 -n controllers 'roslaunch flo_core ros_controllers.launch'
+sleep 2
+tmux new-window -t ros:7 -n motor_rw    'roslaunch flo_humanoid read_write_arms.launch'
+sleep 2
+tmux new-window -t ros:8 -n move_group 'roslaunch flo_core move_group.launch'
+sleep 2
+tmux new-window -t ros:9 -n game_runner 'roslaunch flo_core simonsays_launcher_prod.launch'
+
 
 # 3) (optional) Attach so you see the tmux panes on “docker attach”
 # tmux attach -t ros

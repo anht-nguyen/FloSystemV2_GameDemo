@@ -55,6 +55,14 @@ def _pick_actions(pool):
     return a_left, a_right
 
 def _goal_cb(ud, _):
+    # -- Delay to ensure any prior goal cancel has been processed --
+    # You can tune this via ROS param '~cmd_goal_delay' (in seconds)
+    try:
+        delay = float(rospy.get_param('~cmd_goal_delay', 0.5))
+    except (KeyError, ValueError):
+        delay = 0.5
+    rospy.logdebug(f"Delaying {delay}s before sending simon_cmd goal")
+    rospy.sleep(rospy.Duration(delay))
     goal = SimonCmdGoal()
     goal.gesture_name = f"{ud.left_action.name}_left|{ud.right_action.name}_right"
     goal.simon_says = ud.simon_says
@@ -304,8 +312,18 @@ class PublishEmotionState(smach.State):
         self._pub = rospy.Publisher("/emotion", Emotion, queue_size=1, latch=True)
 
     def execute(self, ud):
+        # Publish emotion (happy/sad)
         self._pub.publish(Emotion(state=self._val))
+        # Hold face for configured duration
         rospy.sleep(rospy.Duration(ud.face_duration))
+        # --- Insert inter-turn delay to give robot a pause before next turn
+        # You can adjust this delay via ROS param '~inter_turn_delay' (in seconds)
+        try:
+            delay = float(rospy.get_param('~inter_turn_delay', 5.0))
+        except (KeyError, ValueError):
+            delay = 5.0
+        rospy.loginfo(f"Inter-turn delay: {delay}s")
+        rospy.sleep(rospy.Duration(delay))
         return "done"
 
 class NextTurnFromSequence(smach.State):

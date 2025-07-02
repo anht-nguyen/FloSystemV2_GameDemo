@@ -49,6 +49,9 @@ install(DIRECTORY launch/
   FILES_MATCHING PATTERN "*.launch"
 )
 
+install(DIRECTORY launch
+        DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
+
 ##############################################################################
 # (No C++ targets to build for this package)
 ##############################################################################

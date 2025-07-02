@@ -24,7 +24,7 @@ tmux new-window -t ros:3 -n vision 'rosrun flo_vision arm_hand_tracker_node.py _
 sleep 2
 tmux new-window -t ros:4 -n vision_monitor 'rostopic echo /arm_hand_tracker/pose_score' #uncomment to monitor the arm hand tracker node
 sleep 2
-tmux new-window -t ros:5 -n face 'rosrun flo_face flo_face_launcher.py' #uncomment to run the face tracker node
+tmux new-window -t ros:5 -n face 'roslaunch flo_face flo_face_launcher.launch' #uncomment to run the face tracker node
 sleep 5
 tmux new-window -t ros:6 -n game_runner 'roslaunch flo_core simonsays_launcher_prod.launch' #launch the game runner
 

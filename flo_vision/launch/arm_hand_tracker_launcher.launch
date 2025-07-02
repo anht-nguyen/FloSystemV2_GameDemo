@@ -1,0 +1,9 @@
+<launch>
+  <!-- Arm/hand tracker -->
+  <node pkg="flo_vision" type="arm_hand_tracker_node.py" name="arm_hand_tracker">
+    <param name="image"   value="/usb_cam/image_raw"/>
+    <param name="pose"    value="static"/>
+    <param name="preview" value="true"/>
+    <param name="calib_margin_px" value="40"/>
+  </node>
+</launch>

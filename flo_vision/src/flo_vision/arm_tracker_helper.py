@@ -31,6 +31,8 @@ class ArmTracker:
         self.side_reaching_hold_frames = 30  # 2s @ 30fps
         self.swing_leteral_shoulder_threshold = 35  # degrees
 
+        self.mp_pose = mp_pose
+
     def calculate_angle(self, point1, point2, point3):
         a = np.array(point1)
         b = np.array(point2)
@@ -556,3 +558,62 @@ class ArmTracker:
         except:
             pass
         return False
+    
+    def kpts_dict(self, landmarks, H, W):
+        """Return {name: (x_px, y_px, score)} for the main joints we care about."""
+        mp_kp = self.mp_pose.PoseLandmark          # enum
+        def pt(l):
+            return (int(l.x * W), int(l.y * H), l.visibility)
+        return {
+            "left_hip":  pt(landmarks[mp_kp.LEFT_HIP]),
+            "right_hip": pt(landmarks[mp_kp.RIGHT_HIP]),
+            "left_wrist": pt(landmarks[mp_kp.LEFT_WRIST]),
+            "right_wrist": pt(landmarks[mp_kp.RIGHT_WRIST]),
+            "nose": pt(landmarks[mp_kp.NOSE]),
+        }
+
+    
+
+# ─────────────────────────────────────────────────────────────
+#  New util: returns (ready, hint)
+# ─────────────────────────────────────────────────────────────
+def calib_check(kps, img_h, img_w, margin=40):
+    """
+    kps : dict {name: (x,y,score)} – MUST include
+          "left_hip", "right_hip", "left_wrist", "right_wrist"
+          and "nose" (for head top reference)
+
+    Assumes wrists are already above nose if the user raised arms.
+    """
+    
+    wrists_y = [kps["left_wrist"][1], kps["right_wrist"][1]]
+    nose_y   = kps["nose"][1]
+    # 1) Must raise arm: hint "raise_arm" until wrist_y < nose_y
+    if min(wrists_y) <= nose_y:
+        return False, "raise_arm"
+
+    # 2) Now the arm is up – inform Core explicitly
+    #    but don’t yet mark ready until framing passes
+    ready, hint = False, "arm_up"
+
+    # 3) Framing check (hips→wrists bounding box)
+    hips_y   = [kps["left_hip"][1], kps["right_hip"][1]]
+    top_y    = min(wrists_y)
+    bottom_y = max(hips_y)
+    left_x   = min(kps[p][0] for p in ["left_hip","right_hip","left_wrist","right_wrist"])
+    right_x  = max(kps[p][0] for p in ["left_hip","right_hip","left_wrist","right_wrist"])
+
+    if (top_y    > margin and
+        bottom_y < img_h - margin and
+        left_x   > margin and
+        right_x  < img_w - margin and 
+        hint == "arm_up"):
+        return True, hint       # fully ready
+
+    # 4) Otherwise emit the appropriate framing hint
+    if bottom_y >= img_h - margin:    hint = "back"
+    elif top_y <= margin:             hint = "forward"
+    elif left_x <= margin:            hint = "right"
+    elif right_x >= img_w - margin:   hint = "left"
+    return False, hint
+    

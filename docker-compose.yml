@@ -1,0 +1,33 @@
+services:
+  flo_robot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: flo_system_v2_game_demo:latest
+    container_name: flo_game
+    privileged: true              # required for /dev/video0 & audio
+    environment:
+      - DISPLAY=${DISPLAY}
+      - XAUTHORITY=/home/${USER}/.Xauthority
+      - QT_X11_NO_MITSHM=1
+      - LIBGL_ALWAYS_INDIRECT=0
+      - UDEV=1                    # still useful for hot-plugged devices
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:ro
+      - ${XAUTHORITY}:/home/${USER}/.Xauthority:ro
+      - ./certs/aws-credentials:/root/.aws/credentials:ro
+      - ./certs/aws-config:/root/.aws/config:ro
+      - /dev/video0:/dev/video0           # pass webcam
+      - /dev/snd:/dev/snd                 # pass audio
+    devices:
+      - /dev/video0:/dev/video0           # explicit webcam access
+      - /dev/snd:/dev/snd                 # ALSA devices
+      - /dev/ttyACM0:/dev/ttyACM0         # keep serial (Arduino, etc.)
+    working_dir: /catkin_ws
+    ipc: host
+    tty: true
+    stdin_open: true
+    entrypoint:
+      - bash
+      - -c
+      - "/usr/local/bin/ros_docker_auto_startup_launcher.sh && exec tail -f /dev/null"

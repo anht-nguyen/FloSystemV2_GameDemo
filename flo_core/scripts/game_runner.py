@@ -11,14 +11,15 @@ import rospy
 import smach
 import smach_ros
 
-from std_msgs.msg import String, Int32
+from std_msgs.msg import String, Int32, Bool
 from flo_core_defs.msg import PoseScore, Emotion
 from flo_core_defs.msg import SimonCmdAction, SimonCmdGoal
+from flo_core_defs.msg import CalibStatus
 from flo_core.action_sequence_controller import Action
 from flo_core.prompt_utils import build_prompt
 from actionlib import SimpleActionClient
 
-from polly_tts_streaming import PollyTTSStream
+from flo_core.polly_tts_streaming import PollyTTSStream
 
 
 RULES_TEXT = (
@@ -89,6 +90,78 @@ class Introduction:
         while not rospy.is_shutdown():
             if self.controller._last_intro_cmd in ("continue", "restart"):
                 return self.controller._last_intro_cmd
+            rate.sleep()
+
+class CalibrationStage:
+    """
+    Drives the 'step back / forward' dialogue until flo_vision
+    reports that the full upper body + arm-over-head are in view.
+    """
+    def __init__(self, tts, prompt_pub):
+        self._tts = tts
+        self._prompt_pub = prompt_pub
+        self._status_sub = rospy.Subscriber(
+            "/simon_game/calib_status", CalibStatus, self._status_cb
+        )
+        self._ready = False
+        self._hint  = ""
+
+        # Publisher that toggles calibration mode inside flo_vision
+        self._cmd_pub = rospy.Publisher(
+            "/simon_game/calib_cmd", Bool, queue_size=1, latch=True
+        )
+
+    # ------------------------------------------------------------------
+    def _status_cb(self, msg: CalibStatus):
+        self._ready = msg.ready
+        self._hint  = msg.hint.lower()
+
+    # ------------------------------------------------------------------
+    def run(self):
+        # 1) Tell GUI + Vision we’re entering calibration
+        self._cmd_pub.publish(True)
+        self._prompt_pub.publish("Let’s do a quick camera check…")
+        self._tts.speak(
+            "Please raise your arm fully overhead and hold it there."
+        )
+
+        rate = rospy.Rate(5)
+        stage = 1           # 1 = checking pose, 2 = checking framing
+        last_hint = None
+
+        while not rospy.is_shutdown():
+            # Stage 1 → Stage 2 as soon as we get any hint *besides* "raise_arm"
+            if stage == 1 and self._hint and self._hint == "arm_up":
+                # Move to framing stage
+                stage = 2
+                self._prompt_pub.publish(
+                    "Great! Now step back or forward so I can see your full upper body."
+                )
+                self._tts.speak(
+                    "Great! Now step back or forward until I can see your whole upper body and raised arm."
+                )
+                last_hint = None
+
+            if stage == 2 and self._ready:
+                # Success!
+                self._tts.speak("Perfect! I can see your whole upper body.")
+                self._cmd_pub.publish(False)
+                return
+
+            # Only speak when hint changes
+            if self._hint and self._hint != last_hint:
+                msg = {
+                    "raise_arm":    "Please raise your arm fully overhead and hold it there.",  # we only prompt once at entry
+                    "back":      "A little farther, please.",
+                    "forward":   "Come a bit closer.",
+                    "left":      "Move slightly to your left.",
+                    "right":     "Move slightly to your right.",
+                }.get(self._hint, "")
+                if msg:
+                    self._prompt_pub.publish(msg)
+                    self._tts.speak(msg)
+                    last_hint = self._hint
+
             rate.sleep()
 
 
@@ -534,19 +607,37 @@ class GameController:
             rospy.loginfo("[INTRO] Speaking rules speech")
             self.tts.speak(RULES_SPEECH)
 
-            # 3) Wait for GUI to press Continue / Restart
+            # 3) Wait for GUI to press Continue / Restart ---------------------------
             r = rospy.Rate(10)
             while not rospy.is_shutdown():
                 if self._last_intro_cmd == "continue":
-                    rospy.loginfo("[INTRO] Continue received → start game")
+                    rospy.loginfo("[INTRO] Continue received → run calibration")
+                    self._last_intro_cmd = None
+
+                    # ── NEW: launch calibration stage ─────────────────────────────
+                    calib = CalibrationStage(self.tts, self.prompt_pub)
+                    calib.run()   # blocks until arm-up AND framing are both OK
+
+                    # announce end of calibration and enable GUI Continue
+                    self.prompt_pub.publish("Calibration complete. Press Continue to start.")
+                    self.tts.speak("Calibration complete. Press Continue when you are ready.")
+
+                    # now wait for the operator to click Continue again
+                    while not rospy.is_shutdown():
+                        if self._last_intro_cmd == "continue":
+                            rospy.loginfo("[INTRO] Second Continue → start game")
+                            break
+                        r.sleep()
+
+                    # finally start the game
+                    self._last_intro_cmd = None
                     self.intro_done = True
                     self.intro_in_progress = False
-                    self._last_intro_cmd = None
-                    # launch state-machine
                     self.running = True
                     self.sis.start()
                     threading.Thread(target=self.run_game).start()
                     return
+
                 if self._last_intro_cmd == "restart":
                     rospy.loginfo("[INTRO] Restart received → reset intro")
                     self.intro_in_progress = False

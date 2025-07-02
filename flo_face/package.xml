@@ -1,0 +1,52 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>flo_face</name>
+  <version>0.1.0</version>
+  <description>
+    LED‑matrix facial expression driver for Lil'Flo.  Streams pixel frames
+    defined in <filename>faces.json</filename> to a Teensy micro‑controller
+    and exposes a simple ROS interface via the <message>Emotion</message>
+    message from <package>flo_core_defs</package>.
+  </description>
+
+  <!-- Maintainers -->
+  <maintainer email="anh.nguyen@rehabroboticslab.org">Anh Nguyen</maintainer>
+
+  <!-- Licence -->
+  <license>MIT</license>
+
+  <!-- Websites / repo links (optional) -->
+  <url type="website">https://github.com/anht-nguyen/FloSystemV2_GameDemo</url>
+  <url type="repository">https://github.com/anht-nguyen/FloSystemV2_GameDemo/tree/anhtn-flo_face_dev</url>
+
+  <!-- Build tools -->
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <!-- Build‑time dependencies -->
+  <build_depend>message_generation</build_depend>
+  <build_depend>rospy</build_depend>
+  <build_depend>std_msgs</build_depend>
+  <build_depend>flo_core_defs</build_depend>
+  <build_depend>rospack</build_depend>
+
+  <!-- Export‑time dependencies (needed when others compile against us) -->
+  <build_export_depend>rospy</build_export_depend>
+  <build_export_depend>std_msgs</build_export_depend>
+  <build_export_depend>flo_core_defs</build_export_depend>
+  <build_export_depend>rospack</build_export_depend>
+  <build_export_depend>message_generation</build_export_depend>
+
+  <!-- Run‑time dependencies -->
+  <exec_depend>message_runtime</exec_depend>
+  <exec_depend>rospy</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>flo_core_defs</exec_depend>
+  <exec_depend>rospack</exec_depend>
+  <exec_depend>message_generation</exec_depend>
+
+  <!-- Optional test dependencies -->
+  <test_depend>rostest</test_depend>
+
+  <!-- Misc. -->
+  <export/>
+</package>

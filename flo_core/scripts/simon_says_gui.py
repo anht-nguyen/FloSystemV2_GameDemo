@@ -267,9 +267,10 @@ class SimonGUI(QWidget):
             self.remaining_time = self.turn_timeout
             self.lbl_timer.setText(self._fmt_time(self.remaining_time))
             # if not self.ticker.isActive():
+            rospy.loginfo("[GUI] TIMER STARTED in InGame") 
             self.ticker.start(1000)
         else:
-            self.ticker.stop()
+            # self.ticker.stop()
             self.remaining_time = self.turn_timeout
             self.lbl_timer.setText(self._fmt_time(self.remaining_time))
 
@@ -302,8 +303,8 @@ class SimonGUI(QWidget):
         if self.remaining_time > 0:
             self.remaining_time -= 1
             self.lbl_timer.setText(self._fmt_time(self.remaining_time))
-        else:
-            self.ticker.stop()
+        # else:
+        #     self.ticker.stop()
 
     # ─────────────────────────── ROS callbacks ─────────────────────────────
 
@@ -336,13 +337,12 @@ class SimonGUI(QWidget):
                 self._update_buttons()
 
     def _cb_turn(self, msg: Int32):
+        rospy.loginfo(f"[GUI] _cb_turn: ticker active? {self.ticker.isActive()}")
         self.current_turn = msg.data
         self.lbl_turn.setText(f"Turn: {self.current_turn}/{self.total_rounds}")
-        if self.current_state == GameState.IN_GAME:
-            self.ticker.stop()
+        if self.current_state == GameState.IN_GAME:          
             self.remaining_time = self.turn_timeout
             self.lbl_timer.setText(self._fmt_time(self.remaining_time))
-            self.ticker.start(1000)
 
     # ───────────────────────── helper methods ─────────────────────────────
 

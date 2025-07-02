@@ -29,7 +29,7 @@ class ArmTracker:
         self.wrist_depth_threshold = 0.8
         self.elbow_depth_threshold = 0.3
         self.side_reaching_hold_frames = 30  # 2s @ 30fps
-        self.swing_leteral_shoulder_threshold = 45  # degrees
+        self.swing_leteral_shoulder_threshold = 35  # degrees
 
         self.mp_pose = mp_pose
 
@@ -283,7 +283,7 @@ class ArmTracker:
                 return False
 
             # Only track when elbow is extended
-            if elbow_angle > 120:
+            if elbow_angle > 30:
                 history.append(shoulder_angle)
                 if len(history) > self.swing_leteral_history_length:
                     history.pop(0)

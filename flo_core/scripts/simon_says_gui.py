@@ -63,7 +63,6 @@ class SimonGUI(QWidget):
     restartClicked = pyqtSignal()
     quitClicked = pyqtSignal()
     rulesReceived = pyqtSignal()  # emitted when rules prompt arrives
-    calibDone      = pyqtSignal() 
 
     # ───────────────────────── GUI lifecycle ──────────────────────────
 
@@ -208,11 +207,12 @@ class SimonGUI(QWidget):
         self.s_intro_wait.addTransition(self.continueClicked, self.s_calibrating)
         self.s_intro_wait.addTransition(self.stopClicked, self.s_game_over)
 
-        self.s_calibrating.addTransition(self.calibDone, self.s_in_game)  # Calibrating → InGame
+        self.s_calibrating.addTransition(self.continueClicked, self.s_in_game)  # Calibrating → InGame
+        self.s_calibrating.addTransition(self.stopClicked, self.s_game_over)  # Calibrating → Game Over
 
         self.s_in_game.addTransition(self.pauseClicked, self.s_paused)
         self.s_in_game.addTransition(self.stopClicked, self.s_game_over) # Stop ⇒ Game Over
-        self.s_in_game.addTransition(self.quitClicked, self.s_terminated)
+        self.s_in_game.addTransition(self.stopClicked, self.s_game_over)
         # self.s_in_game.addTransition(self.restartClicked, self.s_idle)
 
         self.s_paused.addTransition(self.continueClicked, self.s_in_game)
@@ -325,10 +325,14 @@ class SimonGUI(QWidget):
             self.rulesReceived.emit()
 
         # Calibration finished → Calibrating → InGame
-        elif self.current_state == GameState.CALIBRATING and text.lower().startswith("perfect"):
-            self.calib_ready = True
-            self._update_buttons()  # glow Continue
-            self.calibDone.emit()   # advance FSM when they click Continue
+        if self.current_state == GameState.CALIBRATING:
+            if text.startswith("great"):
+                # User can now move; still no Continue
+                self.calib_ready = False
+            elif text.startswith("perfect"):
+                # Both conditions met!
+                self.calib_ready = True
+                self._update_buttons()
 
     def _cb_turn(self, msg: Int32):
         self.current_turn = msg.data
@@ -374,21 +378,17 @@ class SimonGUI(QWidget):
         elif st == GameState.INTRO_WAIT:
             self.btn_continue.setEnabled(True)
             self.btn_stop.setEnabled(True)
-            # self.btn_restart.setEnabled(True)
         elif st == GameState.IN_GAME:
             self.btn_pause.setEnabled(True)
             self.btn_stop.setEnabled(True)
-            # self.btn_restart.setEnabled(True)
         elif st == GameState.PAUSED:
             self.btn_continue.setEnabled(True)
             self.btn_stop.setEnabled(True)
-            # self.btn_restart.setEnabled(True)
         elif st == GameState.GAME_OVER:          
             self.btn_restart.setEnabled(True)
         elif st == GameState.CALIBRATING:
             self.btn_stop.setEnabled(True)
-            if self.calib_ready:             # ← only after “Perfect!”
-                self.btn_continue.setEnabled(True)
+            self.btn_continue.setEnabled(self.calib_ready)
 
 
         # Quit always enabled -------------------------------------------------

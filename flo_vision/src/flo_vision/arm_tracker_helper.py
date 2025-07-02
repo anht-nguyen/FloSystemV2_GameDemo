@@ -585,37 +585,38 @@ def calib_check(kps, img_h, img_w, margin=40):
 
     Assumes wrists are already above nose if the user raised arms.
     """
-    # skip if confidence low
-    req = ["left_hip", "right_hip", "left_wrist", "right_wrist"]
-    if any(kps[p][2] < 0.4 for p in req):
-        return False, "raise_arm"
+    # 1) Is arm fully raised?
+    wrists_y = [kps["left_wrist"][1], kps["right_wrist"][1]]
+    nose_y   = kps["nose"][1]
+    if min(wrists_y) > nose_y:
+        arm_up = True
+    else:
+        return False, "arm_up"
 
-    hips_y    = [kps["left_hip"][1],   kps["right_hip"][1]]
-    wrists_y  = [kps["left_wrist"][1], kps["right_wrist"][1]]
-    top_y     = int(min(wrists_y))
-    bottom_y  = int(max(hips_y))
+    # 2) Is the bounding box (hips→wrists) fully inside?
+    #    (same logic as before)
+    hips_y   = [kps["left_hip"][1], kps["right_hip"][1]]
+    top_y    = min(wrists_y)
+    bottom_y = max(hips_y)
+    left_x   = min(kps[p][0] for p in ["left_hip","right_hip","left_wrist","right_wrist"])
+    right_x  = max(kps[p][0] for p in ["left_hip","right_hip","left_wrist","right_wrist"])
 
-    # Horizontal extent
-    xs = [kps[p][0] for p in req]
-    left_x, right_x = int(min(xs)), int(max(xs))
-
-    ready  = (
+    ready = (
         top_y    > margin and
         bottom_y < img_h - margin and
         left_x   > margin and
         right_x  < img_w - margin
     )
-
     if ready:
         return True, ""
-
-    # Decide hint (pick the biggest violation)
+    # decide which direction to prompt
     if bottom_y >= img_h - margin:
         return False, "back"
     if top_y <= margin:
-        return False, "forward"            # too small ⇒ come closer
+        return False, "forward"
     if left_x <= margin:
         return False, "right"
     if right_x >= img_w - margin:
         return False, "left"
-    return False, "raise_arm"
+
+    return False, ""  # fallback

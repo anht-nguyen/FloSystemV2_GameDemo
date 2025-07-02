@@ -218,6 +218,7 @@ class ArmHandTrackerNode:
                 color = (0, 255, 0) if ready else (0, 0, 255)
                 cv2.putText(image_bgr, f"CALIB: {txt}", (20, 40),
                             cv2.FONT_HERSHEY_SIMPLEX, 1.2, color, 3)
+                self.preview_frame = image_bgr    # ← ensure the GUI thread sees each new frame
 
             if not ready:
                 return              # skip normal gesture logic while calibrating

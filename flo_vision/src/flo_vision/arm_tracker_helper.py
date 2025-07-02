@@ -592,30 +592,28 @@ def calib_check(kps, img_h, img_w, margin=40):
     if min(wrists_y) <= nose_y:
         return False, "raise_arm"
 
-    # 2) Is the bounding box (hips→wrists) fully inside?
-    #    (same logic as before)
+    # 2) Now the arm is up – inform Core explicitly
+    #    but don’t yet mark ready until framing passes
+    ready, hint = False, "arm_up"
+
+    # 3) Framing check (hips→wrists bounding box)
     hips_y   = [kps["left_hip"][1], kps["right_hip"][1]]
     top_y    = min(wrists_y)
     bottom_y = max(hips_y)
     left_x   = min(kps[p][0] for p in ["left_hip","right_hip","left_wrist","right_wrist"])
     right_x  = max(kps[p][0] for p in ["left_hip","right_hip","left_wrist","right_wrist"])
 
-    ready = (
-        top_y    > margin and
+    if (top_y    > margin and
         bottom_y < img_h - margin and
         left_x   > margin and
-        right_x  < img_w - margin
-    )
-    if ready:
-        return True, ""
-    # decide which direction to prompt
-    if bottom_y >= img_h - margin:
-        return False, "back"
-    if top_y <= margin:
-        return False, "forward"
-    if left_x <= margin:
-        return False, "right"
-    if right_x >= img_w - margin:
-        return False, "left"
+        right_x  < img_w - margin and 
+        hint == "arm_up"):
+        return True, hint       # fully ready
 
-    return False, ""  # fallback
+    # 4) Otherwise emit the appropriate framing hint
+    if bottom_y >= img_h - margin:    hint = "back"
+    elif top_y <= margin:             hint = "forward"
+    elif left_x <= margin:            hint = "right"
+    elif right_x >= img_w - margin:   hint = "left"
+    return False, hint
+    

@@ -80,7 +80,7 @@ class ArmHandTrackerNode:
 
         # ─── Calibration handshake -----------------------------------------
         self.calib_mode = False                           # toggled by Core
-        self.calib_margin_px = rospy.get_param("~calib_margin_px", 40)
+        self.calib_margin_px = rospy.get_param("~calib_margin_px", 10)
 
         self._calib_pub = rospy.Publisher(
             "/simon_game/calib_status", CalibStatus, queue_size=10

@@ -31,7 +31,7 @@
         <!-- <node name="spawn_camera" pkg="gazebo_ros" type="spawn_model" args="-param camera_description -urdf -model camera -x 0.0 -y 0.0 -z 0" /> -->
     
 	<!--Load and launch the joint trajectory controller-->
-	<rosparam file ="$(find flov2_robot_description)/config/joint_trajectory_controller.yaml" command="load"/>
+	<rosparam file ="$(find flo_core)/config/joint_trajectory_controllers.yaml" command="load"/>
 	<node name= "controller_spawner" pkg= "controller_manager" type="spawner" respawn="false" output="screen" args="joint_state_controller right_arm_controller left_arm_controller"/>
 	
 	<!-- Launch subscriber node for AprilTag detection -->

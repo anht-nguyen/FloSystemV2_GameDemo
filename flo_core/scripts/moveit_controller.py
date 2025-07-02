@@ -26,7 +26,7 @@ Key features
 import sys
 import threading
 
-import rospy
+import time, rospy
 import moveit_commander
 import actionlib
 from std_msgs.msg import String
@@ -65,6 +65,8 @@ class SimonCmdActionServer:
         moveit_commander.roscpp_initialize(sys.argv)
         rospy.loginfo("[moveit_controller] Initialising MoveIt groups…")
         self.reference_frame = "world"
+
+        time.sleep(5.0) 
 
         self.arm_R = moveit_commander.MoveGroupCommander("R")
         self.arm_L = moveit_commander.MoveGroupCommander("L")

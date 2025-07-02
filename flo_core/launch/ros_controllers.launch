@@ -6,7 +6,7 @@
 
   <!-- Load the controllers -->
     <node pkg="controller_manager" type="spawner" name="spawn_arm_ctrls"
-        args="right_arm_controller left_arm_controller dual_arm_controller
+        args="right_arm_controller left_arm_controller 
               --controller-manager /controller_manager"/>
 
 </launch>

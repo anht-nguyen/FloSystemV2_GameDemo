@@ -32,7 +32,7 @@
     
 	<!--Load and launch the joint trajectory controller-->
 	<rosparam file ="$(find flov2_robot_description)/config/joint_trajectory_controller.yaml" command="load"/>
-	<node name= "controller_spawner" pkg= "controller_manager" type="spawner" respawn="false" output="screen" args="joint_state_controller robot_arm_controller hand_ee_controller"/>
+	<node name= "controller_spawner" pkg= "controller_manager" type="spawner" respawn="false" output="screen" args="joint_state_controller right_arm_controller left_arm_controller"/>
 	
 	<!-- Launch subscriber node for AprilTag detection -->
     <!-- <node name="subscriber_apriltag" pkg="movewihhead" type="subscriber_apriltag" output="screen" /> -->

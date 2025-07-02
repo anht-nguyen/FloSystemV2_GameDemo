@@ -49,6 +49,12 @@ COPY certs/aws-config       /root/.aws/config
 RUN chmod 600 /root/.aws/*
 ENV AWS_DEFAULT_REGION=us-east-1    
 
+# ---------- Install dependencies ----------
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        python3-tk \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
 # ---------- Catkin workspace ----------
 ENV CATKIN_WS=/catkin_ws
 RUN mkdir -p $CATKIN_WS/src

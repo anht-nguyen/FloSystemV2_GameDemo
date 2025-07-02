@@ -59,6 +59,12 @@ COPY . $CATKIN_WS/src/
 COPY ros_docker_auto_startup_launcher.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/ros_docker_auto_startup_launcher.sh
 
+# ---------- Install dependencies ----------
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        python3-tk \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
 # ---------- Build workspace ----------
 RUN rosdep init && \
     . /opt/ros/noetic/setup.sh && \

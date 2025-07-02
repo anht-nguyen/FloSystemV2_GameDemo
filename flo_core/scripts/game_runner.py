@@ -130,7 +130,8 @@ class CalibrationStage:
         last_hint = None
 
         while not rospy.is_shutdown():
-            if stage == 1 and self._hint == "arm_up":
+            # Stage 1 → Stage 2 as soon as we get any hint *besides* "raise_arm"
+            if stage == 1 and self._hint and self._hint != "raise_arm":
                 # Move to framing stage
                 stage = 2
                 self._prompt_pub.publish(
@@ -158,7 +159,7 @@ class CalibrationStage:
                 }.get(self._hint, "")
                 if msg:
                     self._prompt_pub.publish(msg)
-                    self._tts.speak(msg, queue=True)
+                    self._tts.speak(msg)
                     last_hint = self._hint
 
             rate.sleep()
@@ -618,7 +619,7 @@ class GameController:
                     calib.run()   # blocks until arm-up AND framing are both OK
 
                     # announce end of calibration and enable GUI Continue
-                    self._prompt_pub.publish("Calibration complete. Press Continue to start.")
+                    self.prompt_pub.publish("Calibration complete. Press Continue to start.")
                     self.tts.speak("Calibration complete. Press Continue when you are ready.")
 
                     # now wait for the operator to click Continue again

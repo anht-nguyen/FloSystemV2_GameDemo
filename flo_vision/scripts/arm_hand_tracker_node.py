@@ -204,25 +204,37 @@ class ArmHandTrackerNode:
         h, w = image_bgr.shape[:2]
 
         # ───────────────────── Calibration branch ──────────────────────────
-        if self.calib_mode and pose_results.pose_landmarks:
-            # Convert Landmarks → dict of (x,y,score) in pixel coords
-            kps = self.arm_tracker.kpts_dict(
-                pose_results.pose_landmarks.landmark, h, w
-            )                             # helper you’ll add in ArmTrackerHelper
-            ready, hint = calib_check(kps, h, w, self.calib_margin_px)
+        if self.calib_mode:
+            if pose_results.pose_landmarks:
+                # 1) Draw your normal skeleton so user sees feedback
+                mp_drawing.draw_landmarks(
+                    image_bgr,
+                    pose_results.pose_landmarks,
+                    self.mp_pose.POSE_CONNECTIONS,
+                    landmark_drawing_spec=mp_drawing_styles.get_default_pose_landmarks_style(),
+                )
 
+                # 2) Run the two-stage check
+                kps = self.arm_tracker.kpts_dict(pose_results.pose_landmarks.landmark, h, w)
+                ready, hint = calib_check(kps, h, w, self.calib_margin_px)
+            else:
+                # no skeleton → still ask them to raise their arm
+                ready, hint = False, "raise_arm"
+
+            # publish status every frame
             self._calib_pub.publish(CalibStatus(ready=ready, hint=hint))
 
-            if self.preview:                              # optional HUD overlay
-                txt = "OK" if ready else hint.upper()
-                color = (0, 255, 0) if ready else (0, 0, 255)
-                cv2.putText(image_bgr, f"CALIB: {txt}", (20, 40),
+            # always update preview_frame with the overlay
+            if self.preview:
+                txt   = "OK" if ready else hint.upper()
+                color = (0,255,0) if ready else (0,0,255)
+                cv2.putText(image_bgr, f"CALIB: {txt}", (20,40),
                             cv2.FONT_HERSHEY_SIMPLEX, 1.2, color, 3)
-                self.preview_frame = image_bgr    # ← ensure the GUI thread sees each new frame
+                self.preview_frame = image_bgr
 
+            # skip normal logic until framing is OK
             if not ready:
-                return              # skip normal gesture logic while calibrating
-            # else: fall through → publish angles / gestures as usual
+                return
 
 
         # ------------------------------------------------------------------

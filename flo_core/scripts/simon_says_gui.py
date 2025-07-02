@@ -313,6 +313,7 @@ class SimonGUI(QWidget):
 
     def _cb_prompt(self, msg: String):
         text = msg.data
+        
         self.lbl_prompt.setText(f"Prompt: {text}")
         # intro → intro_wait trigger ----------------------------------------
         # if self.current_state == GameState.IN_GAME:
@@ -326,11 +327,11 @@ class SimonGUI(QWidget):
 
         # Calibration finished → Calibrating → InGame
         if self.current_state == GameState.CALIBRATING:
-            if text.startswith("great"):
-                # User can now move; still no Continue
+            # Stage 1 → Stage 2
+            if text.startswith("Great"):
                 self.calib_ready = False
-            elif text.startswith("perfect"):
-                # Both conditions met!
+            # Final ready (old or new phrasing)
+            elif text.startswith("Perfect") or text.startswith("Calibration complete"):
                 self.calib_ready = True
                 self._update_buttons()
 

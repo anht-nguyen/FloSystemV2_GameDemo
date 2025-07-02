@@ -585,13 +585,12 @@ def calib_check(kps, img_h, img_w, margin=40):
 
     Assumes wrists are already above nose if the user raised arms.
     """
-    # 1) Is arm fully raised?
+    
     wrists_y = [kps["left_wrist"][1], kps["right_wrist"][1]]
     nose_y   = kps["nose"][1]
-    if min(wrists_y) > nose_y:
-        arm_up = True
-    else:
-        return False, "arm_up"
+    # 1) Must raise arm: hint "raise_arm" until wrist_y < nose_y
+    if min(wrists_y) <= nose_y:
+        return False, "raise_arm"
 
     # 2) Is the bounding box (hips→wrists) fully inside?
     #    (same logic as before)

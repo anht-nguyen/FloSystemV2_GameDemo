@@ -16,9 +16,8 @@
 
   <!--   driver node itself  -->
   <node pkg="flo_humanoid"
-        type="read_write_arms"
-        name="read_write_arms"
-        output="screen"/>
+        type="read_write_arms_node"
+        name="read_write_arms_node"/>
 
   <!-- publishes aggregated /joint_states so MoveIt sees hardware   -->
   <node pkg="joint_state_publisher"

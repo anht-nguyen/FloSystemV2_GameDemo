@@ -28,6 +28,8 @@ Author: 2025, FLO Robot project
 import rospy
 from sensor_msgs.msg import Image
 from std_msgs.msg import Float32, String, Header
+from std_msgs.msg import Bool
+from flo_core_defs.msg import CalibStatus      
 from flo_core_defs.msg import PoseScore
 from cv_bridge import CvBridge, CvBridgeError
 import cv2
@@ -35,7 +37,7 @@ import numpy as np
 import mediapipe as mp
 
 # Helper with the geometric logic
-from flo_vision.arm_tracker_helper import ArmTracker
+from flo_vision.arm_tracker_helper import ArmTracker, calib_check
 
 # ──────────────────────────────────────────────────────
 # MediaPipe drawing utilities
@@ -75,6 +77,18 @@ class ArmHandTrackerNode:
         # Subscriber
         rospy.Subscriber(image_topic, Image, self.image_callback, queue_size=1, buff_size=2 ** 24)
         rospy.Subscriber("~pose_command",String, self.pose_command_callback, queue_size= 1)
+
+        # ─── Calibration handshake -----------------------------------------
+        self.calib_mode = False                           # toggled by Core
+        self.calib_margin_px = rospy.get_param("~calib_margin_px", 10)
+
+        self._calib_pub = rospy.Publisher(
+            "/simon_game/calib_status", CalibStatus, queue_size=10
+        )
+        self._calib_cmd_sub = rospy.Subscriber(
+            "/simon_game/calib_cmd", Bool, self._calib_cmd_cb, queue_size=1
+        )
+
         # --------- MediaPipe initialisation ----------
         self.arm_tracker = ArmTracker()
         self.mp_pose = mp.solutions.pose
@@ -86,6 +100,11 @@ class ArmHandTrackerNode:
                                          max_num_hands=2)
 
         rospy.loginfo("arm_hand_tracker_node initialised – awaiting images…")
+    
+    def _calib_cmd_cb(self, msg: Bool):
+        """Core sets calib mode with a Bool."""
+        self.calib_mode = msg.data
+    
     def calculate_action_similarity(self, detected_gestures, required_gestures):
         if not required_gestures:
             return 0.0, False
@@ -183,6 +202,40 @@ class ArmHandTrackerNode:
         image_bgr = frame  # keep original for drawing
 
         h, w = image_bgr.shape[:2]
+
+        # ───────────────────── Calibration branch ──────────────────────────
+        if self.calib_mode:
+            if pose_results.pose_landmarks:
+                # 1) Draw your normal skeleton so user sees feedback
+                mp_drawing.draw_landmarks(
+                    image_bgr,
+                    pose_results.pose_landmarks,
+                    self.mp_pose.POSE_CONNECTIONS,
+                    landmark_drawing_spec=mp_drawing_styles.get_default_pose_landmarks_style(),
+                )
+
+                # 2) Run the two-stage check
+                kps = self.arm_tracker.kpts_dict(pose_results.pose_landmarks.landmark, h, w)
+                ready, hint = calib_check(kps, h, w, self.calib_margin_px)
+            else:
+                # no skeleton → still ask them to raise their arm
+                ready, hint = False, "raise_arm"
+
+            # publish status every frame
+            self._calib_pub.publish(CalibStatus(ready=ready, hint=hint))
+
+            # always update preview_frame with the overlay
+            if self.preview:
+                txt   = "OK" if ready else hint.upper()
+                color = (0,255,0) if ready else (0,0,255)
+                cv2.putText(image_bgr, f"CALIB: {txt}", (20,40),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1.2, color, 3)
+                self.preview_frame = image_bgr
+
+            # skip normal logic until framing is OK
+            if not ready:
+                return
+
 
         # ------------------------------------------------------------------
         #               DRAW POSE & HAND LANDMARKS (NEW)

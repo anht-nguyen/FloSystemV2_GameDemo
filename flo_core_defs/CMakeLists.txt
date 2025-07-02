@@ -28,6 +28,7 @@ add_message_files(
   StepDef.msg
   PoseScore.msg 
   Emotion.msg
+  CalibStatus.msg
 )
 
 ## Generate services in the 'srv' folder

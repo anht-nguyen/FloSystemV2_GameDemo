@@ -133,7 +133,7 @@ class CalibrationStage:
             "Please raise your arm fully overhead and hold it there."
         )
 
-        rate = rospy.Rate(5)
+        rate = rospy.Rate(10)
         stage = 1           # 1 = checking pose, 2 = checking framing
         last_hint = None
 
@@ -464,7 +464,7 @@ def build_sm(sequence: list[tuple[Action,Action,bool]], params, score_pub, promp
                 "/simon_cmd", SimonCmdAction,
                 goal_cb=_goal_cb,
                 input_keys=["left_action", "right_action", "simon_says"],
-                exec_timeout=rospy.Duration(15.0)
+                exec_timeout=rospy.Duration(10.0)
             ))
             smach.Concurrence.add("POSE", WaitForPoseWithPause())
 
@@ -589,8 +589,8 @@ class GameController:
         # Start the introspection server
         self.game_thread = None            # keep a handle so we can join()
 
-        self.cmd_client = SimpleActionClient("/simon_cmd", SimonCmdAction)
-        self.cmd_client.wait_for_server()
+        # self.cmd_client = SimpleActionClient("/simon_cmd", SimonCmdAction)
+        # self.cmd_client.wait_for_server()
 
 
     # ───────────────────────────────── INTRO HANDLER ─────────────────────────
@@ -700,6 +700,7 @@ class GameController:
         elif cmd == 'continue':
             self.resume_pending = True
             self.pause_pending = False
+            rospy.loginfo("[game_runner] Resume requested – continuing game")
         # Force finish
         elif cmd == 'stop' and self.running:
             self.sm.userdata.turn_idx = self.params['total_rounds'] + 1

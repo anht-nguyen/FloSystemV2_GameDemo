@@ -12,22 +12,35 @@
   <!-- <summary>Dynamixel control nodes for the Flo robot</summary> -->
 
   <!-- License and authorship -->
-   <license>MIT</license>
+  <license>MIT</license>
 
   <maintainer email="you@example.com">Your Name</maintainer>
   <author email="you@example.com">Your Name</author> 
 
-  <license>proprietery</license>
   <buildtool_depend>catkin</buildtool_depend>
-  <depend>roscpp</depend>  
-  <depend>std_msgs</depend>
-  <depend>dynamixel_sdk</depend>
+
+  <!-- Build-time dependencies -->
+  <build_depend>roscpp</build_depend>
+  <build_depend>std_msgs</build_depend>
+  <build_depend>dynamixel_sdk</build_depend>
   <build_depend>message_generation</build_depend>
   <build_depend>rospack</build_depend>
   <build_depend>message_runtime</build_depend>
-  <exec_depend>message_runtime</exec_depend>
 
-  <!-- Export section for non-catkin CMake config, if ever needed -->
+  <!-- Export-time dependencies (needed when others compile against us) -->
+  <build_export_depend>roscpp</build_export_depend>
+  <build_export_depend>std_msgs</build_export_depend>
+  <build_export_depend>dynamixel_sdk</build_export_depend>
+  <build_export_depend>message_runtime</build_export_depend>
+  <build_export_depend>message_generation</build_export_depend>
+
+  <!-- Run-time dependencies -->
+  <exec_depend>roscpp</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>dynamixel_sdk</exec_depend>
+  <exec_depend>message_runtime</exec_depend>
+  <exec_depend>rospack</exec_depend>
+
   <export>
     <!-- Empty for now -->
   </export>

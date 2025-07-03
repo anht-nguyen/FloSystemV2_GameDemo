@@ -2,12 +2,12 @@
 #Controller to control robot arm joints
 
 
-robot_arm_controller:
+right_arm_controller:
   type: "position_controllers/JointTrajectoryController"
   joints: [r1, r2, r3, r4]
   
 #Controller to control end effector joints
-hand_ee_controller:
+left_arm_controller:
   type: "position_controllers/JointTrajectoryController"
   joints: [l1, l2, l3, l4]
   

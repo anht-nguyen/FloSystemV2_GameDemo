@@ -17,3 +17,4 @@ face_duration:         2.0        # seconds robot shows happy/sad face
 simon_ratio:           0.7       # 60 % of prompts include “Simon says”
 total_rounds:          5         # stop after 15 dual-arm turns
 threshold:             0.3        # threshold for pose similarity
+inter_turn_delay:      3.0        # seconds to wait before next turn

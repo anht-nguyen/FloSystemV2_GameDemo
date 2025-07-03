@@ -37,12 +37,12 @@ class JointStateToDxlBridge:
             r1 = math.degrees(js['r1']) + self.offsets['r1']
             r2 = math.degrees(js['r2']) + self.offsets['r2']
             r3 = math.degrees(js['r3']) + self.offsets['r3']
-            r4 = math.degrees(js['r4']) + self.offsets['r4']
+            r4 = - math.degrees(js['r4']) + self.offsets['r4']
 
             l1 = math.degrees(js['l1']) + self.offsets['l1']
             l2 = math.degrees(js['l2']) + self.offsets['l2']
             l3 = math.degrees(js['l3']) + self.offsets['l3']
-            l4 = 180 - math.degrees(js['l4']) + self.offsets['l4']
+            l4 = math.degrees(js['l4']) + self.offsets['l4'] 
         except KeyError as e:
             rospy.logwarn(f"Joint '{e.args[0]}' not found in /joint_states, skipping.")
             return
@@ -65,6 +65,23 @@ class JointStateToDxlBridge:
             self.convert_to_dynamixel_position(r4)
         )
 
+        # cmd = SetArmsJointPositions(
+        #     # IDs from YAML
+        #     self.joint_id_map['l1'], self.joint_id_map['l2'], self.joint_id_map['l3'], self.joint_id_map['l4'],
+        #     0,0,0,0,
+        #     # Command type for each: all 'position'
+        #     'position', 'position', 'position', 'position',
+        #     '', '', '', '',
+        #     # Values: convert angles to DXL ticks
+        #     self.convert_to_dynamixel_position(l1),
+        #     self.convert_to_dynamixel_position(l2),
+        #     self.convert_to_dynamixel_position(l3),
+        #     self.convert_to_dynamixel_position(l4),
+        #     0,
+        #     0,
+        #     0,
+        #     0
+        # )
         self.pub.publish(cmd)
         rospy.logdebug(
             f"Published DXL positions: L[{l1:.1f},{l2:.1f},{l3:.1f},{l4:.1f}], "

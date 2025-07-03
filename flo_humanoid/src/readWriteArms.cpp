@@ -36,7 +36,7 @@ using namespace dynamixel;
 
 
 // BAUDRATE should be defined here.
-#define BAUDRATE             57600            // Default Baudrate of DYNAMIXEL X series
+#define BAUDRATE             1000000            // Default Baudrate of DYNAMIXEL X series
 //set up fixed mount point for the device, this is the same as the one set in the udev rules file.
 #define DEVICE_NAME          "/dev/ttyUSB0"  // [Linux] To find assigned port, use "$ ls /dev/ttyUSB*" command
 

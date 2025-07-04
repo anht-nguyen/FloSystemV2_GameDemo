@@ -47,41 +47,43 @@ class JointStateToDxlBridge:
             rospy.logwarn(f"Joint '{e.args[0]}' not found in /joint_states, skipping.")
             return
 
-        cmd = SetArmsJointPositions(
-            # IDs from YAML
-            self.joint_id_map['l1'], self.joint_id_map['l2'], self.joint_id_map['l3'], self.joint_id_map['l4'],
-            self.joint_id_map['r1'], self.joint_id_map['r2'], self.joint_id_map['r3'], self.joint_id_map['r4'],
-            # Command type for each: all 'position'
-            'position', 'position', 'position', 'position',
-            'position', 'position', 'position', 'position',
-            # Values: convert angles to DXL ticks
-            self.convert_to_dynamixel_position(l1),
-            self.convert_to_dynamixel_position(l2),
-            self.convert_to_dynamixel_position(l3),
-            self.convert_to_dynamixel_position(l4),
-            self.convert_to_dynamixel_position(r1),
-            self.convert_to_dynamixel_position(r2),
-            self.convert_to_dynamixel_position(r3),
-            self.convert_to_dynamixel_position(r4)
-        )
-
         # cmd = SetArmsJointPositions(
         #     # IDs from YAML
         #     self.joint_id_map['l1'], self.joint_id_map['l2'], self.joint_id_map['l3'], self.joint_id_map['l4'],
-        #     0,0,0,0,
+        #     self.joint_id_map['r1'], self.joint_id_map['r2'], self.joint_id_map['r3'], self.joint_id_map['r4'],
         #     # Command type for each: all 'position'
         #     'position', 'position', 'position', 'position',
-        #     '', '', '', '',
+        #     'position', 'position', 'position', 'position',
         #     # Values: convert angles to DXL ticks
         #     self.convert_to_dynamixel_position(l1),
         #     self.convert_to_dynamixel_position(l2),
         #     self.convert_to_dynamixel_position(l3),
         #     self.convert_to_dynamixel_position(l4),
-        #     0,
-        #     0,
-        #     0,
-        #     0
+        #     self.convert_to_dynamixel_position(r1),
+        #     self.convert_to_dynamixel_position(r2),
+        #     self.convert_to_dynamixel_position(r3),
+        #     self.convert_to_dynamixel_position(r4)
         # )
+
+        cmd = SetArmsJointPositions(
+            # IDs from YAML
+            self.joint_id_map['l1'], self.joint_id_map['l2'], self.joint_id_map['l3'], self.joint_id_map['l4'],
+            0,0,0,0,
+            # Command type for each: all 'position'
+            'position', 'position', 'position', 'position',
+            '', '', '', '',
+            # Values: convert angles to DXL ticks
+            self.convert_to_dynamixel_position(l1),
+            self.convert_to_dynamixel_position(l2),
+            self.convert_to_dynamixel_position(l3),
+            self.convert_to_dynamixel_position(l4),
+            0,
+            0,
+            0,
+            0
+        )
+
+        
         self.pub.publish(cmd)
         rospy.logdebug(
             f"Published DXL positions: L[{l1:.1f},{l2:.1f},{l3:.1f},{l4:.1f}], "

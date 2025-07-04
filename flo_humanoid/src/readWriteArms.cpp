@@ -30,10 +30,10 @@ using namespace dynamixel;
 #define DXL2_ID              112               // DXL2 ID
 #define DXL3_ID              121               // DXL3 ID
 #define DXL4_ID              122               // DXL4 ID
-// #define DXL5_ID              211               // DXL5 ID
-// #define DXL6_ID              212               // DXL6 ID
-// #define DXL7_ID              221               // DXL7 ID
-// #define DXL8_ID              222               // DXL8 ID
+#define DXL5_ID              211               // DXL5 ID
+#define DXL6_ID              212               // DXL6 ID
+#define DXL7_ID              221               // DXL7 ID
+#define DXL8_ID              222               // DXL8 ID
 
 // #define DXL9_ID               225               // DXL9 ID
 // #define DXL10_ID              115               // DXL10 ID
@@ -75,10 +75,10 @@ bool getArmsJointPositionsCallback(
   int32_t position2 = 0;
   int32_t position3 = 0;
   int32_t position4 = 0;
-  // int32_t position5 = 0;
-  // int32_t position6 = 0;
-  // int32_t position7 = 0;
-  // int32_t position8 = 0;
+  int32_t position5 = 0;
+  int32_t position6 = 0;
+  int32_t position7 = 0;
+  int32_t position8 = 0;
 
   // int32_t position9 = 0;
   // int32_t position10 = 0;
@@ -126,46 +126,46 @@ bool getArmsJointPositionsCallback(
     return 0;
   }
 
-  //  if (req.item5 == "position") {
-  //   dxl_addparam_result = groupBulkRead.addParam((uint8_t)req.id5, ADDR_PRESENT_POSITION, 4);
-  // } else if (req.item5 == "LED") {
-  //   dxl_addparam_result = groupBulkRead.addParam((uint8_t)req.id5, ADDR_PRESENT_LED, 1);
-  // }
-  // if (dxl_addparam_result != true) {
-  //   ROS_ERROR("Failed to addparam to groupBulkRead for Dynamixel ID %d", req.id5);
-  //   return 0;
-  // }
+   if (req.item5 == "position") {
+    dxl_addparam_result = groupBulkRead.addParam((uint8_t)req.id5, ADDR_PRESENT_POSITION, 4);
+  } else if (req.item5 == "LED") {
+    dxl_addparam_result = groupBulkRead.addParam((uint8_t)req.id5, ADDR_PRESENT_LED, 1);
+  }
+  if (dxl_addparam_result != true) {
+    ROS_ERROR("Failed to addparam to groupBulkRead for Dynamixel ID %d", req.id5);
+    return 0;
+  }
     
-  // if (req.item6 == "position") {
-  //   dxl_addparam_result = groupBulkRead.addParam((uint8_t)req.id6, ADDR_PRESENT_POSITION, 4);
-  // } else if (req.item6 == "LED") {
-  //   dxl_addparam_result = groupBulkRead.addParam((uint8_t)req.id6, ADDR_PRESENT_LED, 1);
-  // }
-  // if (dxl_addparam_result != true) {
-  //   ROS_ERROR("Failed to addparam to groupBulkRead for Dynamixel ID %d", req.id6);
-  //   return 0;
-  // }
+  if (req.item6 == "position") {
+    dxl_addparam_result = groupBulkRead.addParam((uint8_t)req.id6, ADDR_PRESENT_POSITION, 4);
+  } else if (req.item6 == "LED") {
+    dxl_addparam_result = groupBulkRead.addParam((uint8_t)req.id6, ADDR_PRESENT_LED, 1);
+  }
+  if (dxl_addparam_result != true) {
+    ROS_ERROR("Failed to addparam to groupBulkRead for Dynamixel ID %d", req.id6);
+    return 0;
+  }
     
-  // if (req.item7 == "position") {
-  //   dxl_addparam_result = groupBulkRead.addParam((uint8_t)req.id7, ADDR_PRESENT_POSITION, 4);
-  // } else if (req.item7 == "LED") {
-  //   dxl_addparam_result = groupBulkRead.addParam((uint8_t)req.id7, ADDR_PRESENT_LED, 1);
-  // }
-  // if (dxl_addparam_result != true) {
-  //   ROS_ERROR("Failed to addparam to groupBulkRead for Dynamixel ID %d", req.id7);
-  //   return 0;
-  // }
+  if (req.item7 == "position") {
+    dxl_addparam_result = groupBulkRead.addParam((uint8_t)req.id7, ADDR_PRESENT_POSITION, 4);
+  } else if (req.item7 == "LED") {
+    dxl_addparam_result = groupBulkRead.addParam((uint8_t)req.id7, ADDR_PRESENT_LED, 1);
+  }
+  if (dxl_addparam_result != true) {
+    ROS_ERROR("Failed to addparam to groupBulkRead for Dynamixel ID %d", req.id7);
+    return 0;
+  }
 
     
-  // if (req.item8 == "position") {
-  //   dxl_addparam_result = groupBulkRead.addParam((uint8_t)req.id8, ADDR_PRESENT_POSITION, 4);
-  // } else if (req.item8 == "LED") {
-  //   dxl_addparam_result = groupBulkRead.addParam((uint8_t)req.id8, ADDR_PRESENT_LED, 1);
-  // }
-  // if (dxl_addparam_result != true) {
-  //   ROS_ERROR("Failed to addparam to groupBulkRead for Dynamixel ID %d", req.id8);
-  //   return 0;
-  // }
+  if (req.item8 == "position") {
+    dxl_addparam_result = groupBulkRead.addParam((uint8_t)req.id8, ADDR_PRESENT_POSITION, 4);
+  } else if (req.item8 == "LED") {
+    dxl_addparam_result = groupBulkRead.addParam((uint8_t)req.id8, ADDR_PRESENT_LED, 1);
+  }
+  if (dxl_addparam_result != true) {
+    ROS_ERROR("Failed to addparam to groupBulkRead for Dynamixel ID %d", req.id8);
+    return 0;
+  }
 
 
   // if (req.item9 == "position") {
@@ -269,10 +269,10 @@ bool getArmsJointPositionsCallback(
     ROS_INFO("getItem : [ID:%d] [%s: %d]", req.id2, req.item2.c_str(), value2);
     ROS_INFO("getItem : [ID:%d] [%s: %d]", req.id3, req.item3.c_str(), value3);
     ROS_INFO("getItem : [ID:%d] [%s: %d]", req.id4, req.item4.c_str(), value4);
-    // ROS_INFO("getItem : [ID:%d] [%s: %d]", req.id5, req.item5.c_str(), value5);
-    // ROS_INFO("getItem : [ID:%d] [%s: %d]", req.id6, req.item6.c_str(), value6);
-    // ROS_INFO("getItem : [ID:%d] [%s: %d]", req.id7, req.item7.c_str(), value7);
-    // ROS_INFO("getItem : [ID:%d] [%s: %d]", req.id8, req.item8.c_str(), value8);
+    ROS_INFO("getItem : [ID:%d] [%s: %d]", req.id5, req.item5.c_str(), value5);
+    ROS_INFO("getItem : [ID:%d] [%s: %d]", req.id6, req.item6.c_str(), value6);
+    ROS_INFO("getItem : [ID:%d] [%s: %d]", req.id7, req.item7.c_str(), value7);
+    ROS_INFO("getItem : [ID:%d] [%s: %d]", req.id8, req.item8.c_str(), value8);
     // ROS_INFO("getItem : [ID:%d] [%s: %d]", req.id9, req.item9.c_str(), value9);
     // ROS_INFO("getItem : [ID:%d] [%s: %d]", req.id10, req.item10.c_str(), value10);
 
@@ -280,10 +280,10 @@ bool getArmsJointPositionsCallback(
     res.value2 = value2;
     res.value3 = value3;
     res.value4 = value4;
-    // res.value5 = value5;
-    // res.value6 = value6;
-    // res.value7 = value7;
-    // res.value8 = value8;
+    res.value5 = value5;
+    res.value6 = value6;
+    res.value7 = value7;
+    res.value8 = value8;
     // res.value9 = value9;
     // res.value10 = value10;    
 
@@ -371,69 +371,69 @@ void setArmsJointPositionsCallback(const flo_humanoid::SetArmsJointPositions::Co
     len_goal_item[3] = 1;
   }
 
-  // if (msg->item5 == "position") {
-  //   uint32_t position5 = (unsigned int)msg->value5; // Convert int32 -> uint32
-  //   param_goal_position[4][0] = DXL_LOBYTE(DXL_LOWORD(position5));
-  //   param_goal_position[4][1] = DXL_HIBYTE(DXL_LOWORD(position5));
-  //   param_goal_position[4][2] = DXL_LOBYTE(DXL_HIWORD(position5));
-  //   param_goal_position[4][3] = DXL_HIBYTE(DXL_HIWORD(position5));
-  //   addr_goal_item[4] = ADDR_GOAL_POSITION;
-  //   len_goal_item[4] = 4;
-  //   ROS_INFO("position5: %d", position5);
-  // } else if (msg->item5 == "LED") {
-  //   uint32_t led5 = (unsigned int)msg->value5; // Convert int32 -> uint32
-  //   param_goal_led[4][0] = led5;
-  //   addr_goal_item[4] = ADDR_PRESENT_LED;
-  //   len_goal_item[4] = 1;
-  // }
+  if (msg->item5 == "position") {
+    uint32_t position5 = (unsigned int)msg->value5; // Convert int32 -> uint32
+    param_goal_position[4][0] = DXL_LOBYTE(DXL_LOWORD(position5));
+    param_goal_position[4][1] = DXL_HIBYTE(DXL_LOWORD(position5));
+    param_goal_position[4][2] = DXL_LOBYTE(DXL_HIWORD(position5));
+    param_goal_position[4][3] = DXL_HIBYTE(DXL_HIWORD(position5));
+    addr_goal_item[4] = ADDR_GOAL_POSITION;
+    len_goal_item[4] = 4;
+    ROS_INFO("position5: %d", position5);
+  } else if (msg->item5 == "LED") {
+    uint32_t led5 = (unsigned int)msg->value5; // Convert int32 -> uint32
+    param_goal_led[4][0] = led5;
+    addr_goal_item[4] = ADDR_PRESENT_LED;
+    len_goal_item[4] = 1;
+  }
 
-  // if (msg->item6 == "position") {
-  //   uint32_t position6 = (unsigned int)msg->value6; // Convert int32 -> uint32
-  //   param_goal_position[5][0] = DXL_LOBYTE(DXL_LOWORD(position6));
-  //   param_goal_position[5][1] = DXL_HIBYTE(DXL_LOWORD(position6));
-  //   param_goal_position[5][2] = DXL_LOBYTE(DXL_HIWORD(position6));
-  //   param_goal_position[5][3] = DXL_HIBYTE(DXL_HIWORD(position6));
-  //   addr_goal_item[5] = ADDR_GOAL_POSITION;
-  //   len_goal_item[5] = 4;
-  //   ROS_INFO("position6: %d", position6);
-  // } else if (msg->item6 == "LED") {
-  //   uint32_t led6 = (unsigned int)msg->value6; // Convert int32 -> uint32
-  //   param_goal_led[5][0] = led6;
-  //   addr_goal_item[5] = ADDR_PRESENT_LED;
-  //   len_goal_item[5] = 1;
-  // }
+  if (msg->item6 == "position") {
+    uint32_t position6 = (unsigned int)msg->value6; // Convert int32 -> uint32
+    param_goal_position[5][0] = DXL_LOBYTE(DXL_LOWORD(position6));
+    param_goal_position[5][1] = DXL_HIBYTE(DXL_LOWORD(position6));
+    param_goal_position[5][2] = DXL_LOBYTE(DXL_HIWORD(position6));
+    param_goal_position[5][3] = DXL_HIBYTE(DXL_HIWORD(position6));
+    addr_goal_item[5] = ADDR_GOAL_POSITION;
+    len_goal_item[5] = 4;
+    ROS_INFO("position6: %d", position6);
+  } else if (msg->item6 == "LED") {
+    uint32_t led6 = (unsigned int)msg->value6; // Convert int32 -> uint32
+    param_goal_led[5][0] = led6;
+    addr_goal_item[5] = ADDR_PRESENT_LED;
+    len_goal_item[5] = 1;
+  }
 
-  // if (msg->item7 == "position") {
-  //   uint32_t position7 = (unsigned int)msg->value7; // Convert int32 -> uint32
-  //   param_goal_position[6][0] = DXL_LOBYTE(DXL_LOWORD(position7));
-  //   param_goal_position[6][1] = DXL_HIBYTE(DXL_LOWORD(position7));
-  //   param_goal_position[6][2] = DXL_LOBYTE(DXL_HIWORD(position7));
-  //   param_goal_position[6][3] = DXL_HIBYTE(DXL_HIWORD(position7));
-  //   addr_goal_item[6] = ADDR_GOAL_POSITION;
-  //   len_goal_item[6] = 4;
-  //   ROS_INFO("position7: %d", position7);
-  // } else if (msg->item7 == "LED") {
-  //   uint32_t led7 = (unsigned int)msg->value7; // Convert int32 -> uint32
-  //   param_goal_led[6][0] = led7;
-  //   addr_goal_item[6] = ADDR_PRESENT_LED;
-  //   len_goal_item[6] = 1;
-  // }
+  if (msg->item7 == "position") {
+    uint32_t position7 = (unsigned int)msg->value7; // Convert int32 -> uint32
+    param_goal_position[6][0] = DXL_LOBYTE(DXL_LOWORD(position7));
+    param_goal_position[6][1] = DXL_HIBYTE(DXL_LOWORD(position7));
+    param_goal_position[6][2] = DXL_LOBYTE(DXL_HIWORD(position7));
+    param_goal_position[6][3] = DXL_HIBYTE(DXL_HIWORD(position7));
+    addr_goal_item[6] = ADDR_GOAL_POSITION;
+    len_goal_item[6] = 4;
+    ROS_INFO("position7: %d", position7);
+  } else if (msg->item7 == "LED") {
+    uint32_t led7 = (unsigned int)msg->value7; // Convert int32 -> uint32
+    param_goal_led[6][0] = led7;
+    addr_goal_item[6] = ADDR_PRESENT_LED;
+    len_goal_item[6] = 1;
+  }
 
-  // if (msg->item8 == "position") {
-  //   uint32_t position8 = (unsigned int)msg->value8; // Convert int32 -> uint32
-  //   param_goal_position[7][0] = DXL_LOBYTE(DXL_LOWORD(position8));
-  //   param_goal_position[7][1] = DXL_HIBYTE(DXL_LOWORD(position8));
-  //   param_goal_position[7][2] = DXL_LOBYTE(DXL_HIWORD(position8));
-  //   param_goal_position[7][3] = DXL_HIBYTE(DXL_HIWORD(position8));
-  //   addr_goal_item[7] = ADDR_GOAL_POSITION;
-  //   len_goal_item[7] = 4;
-  //   ROS_INFO("position8: %d", position8);
-  // } else if (msg->item8 == "LED") {
-  //   uint32_t led8 = (unsigned int)msg->value8; // Convert int32 -> uint32
-  //   param_goal_led[7][0] = led8;
-  //   addr_goal_item[7] = ADDR_PRESENT_LED;
-  //   len_goal_item[7] = 1;
-  // }
+  if (msg->item8 == "position") {
+    uint32_t position8 = (unsigned int)msg->value8; // Convert int32 -> uint32
+    param_goal_position[7][0] = DXL_LOBYTE(DXL_LOWORD(position8));
+    param_goal_position[7][1] = DXL_HIBYTE(DXL_LOWORD(position8));
+    param_goal_position[7][2] = DXL_LOBYTE(DXL_HIWORD(position8));
+    param_goal_position[7][3] = DXL_HIBYTE(DXL_HIWORD(position8));
+    addr_goal_item[7] = ADDR_GOAL_POSITION;
+    len_goal_item[7] = 4;
+    ROS_INFO("position8: %d", position8);
+  } else if (msg->item8 == "LED") {
+    uint32_t led8 = (unsigned int)msg->value8; // Convert int32 -> uint32
+    param_goal_led[7][0] = led8;
+    addr_goal_item[7] = ADDR_PRESENT_LED;
+    len_goal_item[7] = 1;
+  }
 
   // if (msg->item9 == "position") {
   //   uint32_t position9 = (unsigned int)msg->value9; // Convert int32 -> uint32
@@ -507,41 +507,41 @@ void setArmsJointPositionsCallback(const flo_humanoid::SetArmsJointPositions::Co
     ROS_ERROR("Failed to addparam to groupBulkWrite for Dynamixel ID: %d", msg->id4);
   }
 
-  // if (msg->item5 == "position") {
-  //   dxl_addparam_result = groupBulkWrite.addParam((uint8_t)msg->id5, addr_goal_item[4], len_goal_item[4], param_goal_position[4]);
-  // } else if (msg->item5 == "LED") {
-  //   dxl_addparam_result = groupBulkWrite.addParam((uint8_t)msg->id5, addr_goal_item[4], len_goal_item[4], param_goal_led[4]);
-  // }
-  // if (dxl_addparam_result != true) {
-  //   ROS_ERROR("Failed to addparam to groupBulkWrite for Dynamixel ID: %d", msg->id5);
-  // }
+  if (msg->item5 == "position") {
+    dxl_addparam_result = groupBulkWrite.addParam((uint8_t)msg->id5, addr_goal_item[4], len_goal_item[4], param_goal_position[4]);
+  } else if (msg->item5 == "LED") {
+    dxl_addparam_result = groupBulkWrite.addParam((uint8_t)msg->id5, addr_goal_item[4], len_goal_item[4], param_goal_led[4]);
+  }
+  if (dxl_addparam_result != true) {
+    ROS_ERROR("Failed to addparam to groupBulkWrite for Dynamixel ID: %d", msg->id5);
+  }
 
-  // if (msg->item6 == "position") {
-  //     dxl_addparam_result = groupBulkWrite.addParam((uint8_t)msg->id6, addr_goal_item[5], len_goal_item[5], param_goal_position[5]);
-  // } else if (msg->item6 == "LED") {
-  //     dxl_addparam_result = groupBulkWrite.addParam((uint8_t)msg->id6, addr_goal_item[5], len_goal_item[5], param_goal_led[5]);
-  // }
-  // if (dxl_addparam_result != true) {
-  //     ROS_ERROR("Failed to addparam to groupBulkWrite for Dynamixel ID: %d", msg->id6);
-  // }
+  if (msg->item6 == "position") {
+      dxl_addparam_result = groupBulkWrite.addParam((uint8_t)msg->id6, addr_goal_item[5], len_goal_item[5], param_goal_position[5]);
+  } else if (msg->item6 == "LED") {
+      dxl_addparam_result = groupBulkWrite.addParam((uint8_t)msg->id6, addr_goal_item[5], len_goal_item[5], param_goal_led[5]);
+  }
+  if (dxl_addparam_result != true) {
+      ROS_ERROR("Failed to addparam to groupBulkWrite for Dynamixel ID: %d", msg->id6);
+  }
 
-  // if (msg->item7 == "position") {
-  //     dxl_addparam_result = groupBulkWrite.addParam((uint8_t)msg->id7, addr_goal_item[6], len_goal_item[6], param_goal_position[6]);
-  // } else if (msg->item7 == "LED") {
-  //     dxl_addparam_result = groupBulkWrite.addParam((uint8_t)msg->id7, addr_goal_item[6], len_goal_item[6], param_goal_led[6]);
-  // }  
-  // if (dxl_addparam_result != true) {
-  //     ROS_ERROR("Failed to addparam to groupBulkWrite for Dynamixel ID: %d", msg->id7);
-  // }
+  if (msg->item7 == "position") {
+      dxl_addparam_result = groupBulkWrite.addParam((uint8_t)msg->id7, addr_goal_item[6], len_goal_item[6], param_goal_position[6]);
+  } else if (msg->item7 == "LED") {
+      dxl_addparam_result = groupBulkWrite.addParam((uint8_t)msg->id7, addr_goal_item[6], len_goal_item[6], param_goal_led[6]);
+  }  
+  if (dxl_addparam_result != true) {
+      ROS_ERROR("Failed to addparam to groupBulkWrite for Dynamixel ID: %d", msg->id7);
+  }
 
-  // if (msg->item8 == "position") {
-  //     dxl_addparam_result = groupBulkWrite.addParam((uint8_t)msg->id8, addr_goal_item[7], len_goal_item[7], param_goal_position[7]);
-  // } else if (msg->item8 == "LED") {
-  //     dxl_addparam_result = groupBulkWrite.addParam((uint8_t)msg->id8, addr_goal_item[7], len_goal_item[7], param_goal_led[7]);
-  // }
-  // if (dxl_addparam_result != true) {
-  //     ROS_ERROR("Failed to addparam to groupBulkWrite for Dynamixel ID: %d", msg->id8);
-  // }
+  if (msg->item8 == "position") {
+      dxl_addparam_result = groupBulkWrite.addParam((uint8_t)msg->id8, addr_goal_item[7], len_goal_item[7], param_goal_position[7]);
+  } else if (msg->item8 == "LED") {
+      dxl_addparam_result = groupBulkWrite.addParam((uint8_t)msg->id8, addr_goal_item[7], len_goal_item[7], param_goal_led[7]);
+  }
+  if (dxl_addparam_result != true) {
+      ROS_ERROR("Failed to addparam to groupBulkWrite for Dynamixel ID: %d", msg->id8);
+  }
 
   // if (msg->item9 == "position") {
   //     dxl_addparam_result = groupBulkWrite.addParam((uint8_t)msg->id9, addr_goal_item[8], len_goal_item[8], param_goal_position[8]);
@@ -567,10 +567,10 @@ void setArmsJointPositionsCallback(const flo_humanoid::SetArmsJointPositions::Co
     ROS_INFO("setItem : [ID:%d] [%s:%d]", msg->id2, msg->item2.c_str(), msg->value2);
     ROS_INFO("setItem : [ID:%d] [%s:%d]", msg->id3, msg->item3.c_str(), msg->value3);
     ROS_INFO("setItem : [ID:%d] [%s:%d]", msg->id4, msg->item4.c_str(), msg->value4);
-    // ROS_INFO("setItem : [ID:%d] [%s:%d]", msg->id5, msg->item5.c_str(), msg->value5);
-    // ROS_INFO("setItem : [ID:%d] [%s:%d]", msg->id6, msg->item6.c_str(), msg->value6);
-    // ROS_INFO("setItem : [ID:%d] [%s:%d]", msg->id7, msg->item7.c_str(), msg->value7);
-    // ROS_INFO("setItem : [ID:%d] [%s:%d]", msg->id8, msg->item8.c_str(), msg->value8);
+    ROS_INFO("setItem : [ID:%d] [%s:%d]", msg->id5, msg->item5.c_str(), msg->value5);
+    ROS_INFO("setItem : [ID:%d] [%s:%d]", msg->id6, msg->item6.c_str(), msg->value6);
+    ROS_INFO("setItem : [ID:%d] [%s:%d]", msg->id7, msg->item7.c_str(), msg->value7);
+    ROS_INFO("setItem : [ID:%d] [%s:%d]", msg->id8, msg->item8.c_str(), msg->value8);
     // ROS_INFO("setItem : [ID:%d] [%s:%d]", msg->id9, msg->item9.c_str(), msg->value9);
     // ROS_INFO("setItem : [ID:%d] [%s:%d]", msg->id10, msg->item10.c_str(), msg->value10);    
   } else {
@@ -749,92 +749,64 @@ int main(int argc, char ** argv)
     return -1;
   }
 
-  dxl_comm_result = packetHandler->write4ByteTxRx(
-    portHandler, DXL4_ID, ADDR_PROFILE_ACCELERATION, PROFILE_ACCEL, &dxl_error);
-  if (dxl_comm_result != COMM_SUCCESS || dxl_error != 0) {
-    ROS_ERROR("Failed to set Profile Accel for Dynamixel ID %d", DXL4_ID);
+  dxl_comm_result = packetHandler->write1ByteTxRx(
+    portHandler, DXL5_ID, ADDR_TORQUE_ENABLE, 1, &dxl_error);
+  if (dxl_comm_result != COMM_SUCCESS) {
+    ROS_ERROR("Failed to enable torque for Dynamixel ID: %d", DXL5_ID);
     return -1;
   }
   
-  dxl_comm_result = packetHandler->write4ByteTxRx(
-    portHandler, DXL4_ID, ADDR_PROFILE_VELOCITY, PROFILE_VEL, &dxl_error);
-  if (dxl_comm_result != COMM_SUCCESS || dxl_error != 0) {
-    ROS_ERROR("Failed to set Profile Vel for Dynamixel ID %d: ",DXL4_ID);
+  dxl_comm_result = packetHandler->write1ByteTxRx(
+    portHandler, DXL5_ID, ADDR_OPER_MODE, 3, &dxl_error);
+  if (dxl_comm_result != COMM_SUCCESS) {
+    ROS_ERROR("Failed to set position control mode for Dynamixel ID: %d", DXL5_ID);
     return -1;
   }
 
-  dxl_comm_result = packetHandler->write2ByteTxRx(
-    portHandler, DXL4_ID, ADDR_POSITION_P_GAIN, P_GAIN_XL, &dxl_error);
-  if (dxl_comm_result != COMM_SUCCESS || dxl_error != 0) {
-    ROS_ERROR("Failed to set P GAIN for Dynamixel ID %d:",DXL4_ID);
+
+  dxl_comm_result = packetHandler->write1ByteTxRx(
+    portHandler, DXL6_ID, ADDR_TORQUE_ENABLE, 1, &dxl_error);
+  if (dxl_comm_result != COMM_SUCCESS) {
+    ROS_ERROR("Failed to enable torque for Dynamixel ID: %d", DXL6_ID);
     return -1;
   }
 
-  dxl_comm_result = packetHandler->write2ByteTxRx(
-    portHandler, DXL4_ID, ADDR_POSITION_D_GAIN, D_GAIN_XL, &dxl_error);
-  if (dxl_comm_result != COMM_SUCCESS || dxl_error != 0) {
-    ROS_ERROR("Failed to set D GAIN for Dynamixel ID %d: ",DXL4_ID);
+  dxl_comm_result = packetHandler->write1ByteTxRx(
+    portHandler, DXL6_ID, ADDR_OPER_MODE, 3, &dxl_error);
+  if (dxl_comm_result != COMM_SUCCESS) {
+    ROS_ERROR("Failed to set position control mode for Dynamixel ID: %d", DXL6_ID);
     return -1;
   }
 
-  // dxl_comm_result = packetHandler->write1ByteTxRx(
-  //   portHandler, DXL5_ID, ADDR_TORQUE_ENABLE, 1, &dxl_error);
-  // if (dxl_comm_result != COMM_SUCCESS) {
-  //   ROS_ERROR("Failed to enable torque for Dynamixel ID: %d", DXL5_ID);
-  //   return -1;
-  // }
 
-  // dxl_comm_result = packetHandler->write1ByteTxRx(
-  //   portHandler, DXL5_ID, ADDR_OPER_MODE, 3, &dxl_error);
-  // if (dxl_comm_result != COMM_SUCCESS) {
-  //   ROS_ERROR("Failed to set position control mode for Dynamixel ID: %d", DXL5_ID);
-  //   return -1;
-  // }
+  dxl_comm_result = packetHandler->write1ByteTxRx(
+    portHandler, DXL7_ID, ADDR_TORQUE_ENABLE, 1, &dxl_error);
+  if (dxl_comm_result != COMM_SUCCESS) {
+    ROS_ERROR("Failed to enable torque for Dynamixel ID: %d", DXL7_ID);
+    return -1;
+  }
 
-
-  // dxl_comm_result = packetHandler->write1ByteTxRx(
-  //   portHandler, DXL6_ID, ADDR_TORQUE_ENABLE, 1, &dxl_error);
-  // if (dxl_comm_result != COMM_SUCCESS) {
-  //   ROS_ERROR("Failed to enable torque for Dynamixel ID: %d", DXL6_ID);
-  //   return -1;
-  // }
-
-  // dxl_comm_result = packetHandler->write1ByteTxRx(
-  //   portHandler, DXL6_ID, ADDR_OPER_MODE, 3, &dxl_error);
-  // if (dxl_comm_result != COMM_SUCCESS) {
-  //   ROS_ERROR("Failed to set position control mode for Dynamixel ID: %d", DXL6_ID);
-  //   return -1;
-  // }
+  dxl_comm_result = packetHandler->write1ByteTxRx(
+    portHandler, DXL7_ID, ADDR_OPER_MODE, 3, &dxl_error);
+  if (dxl_comm_result != COMM_SUCCESS) {
+    ROS_ERROR("Failed to set position control mode for Dynamixel ID: %d", DXL7_ID);
+    return -1;
+  }
 
 
-  // dxl_comm_result = packetHandler->write1ByteTxRx(
-  //   portHandler, DXL7_ID, ADDR_TORQUE_ENABLE, 1, &dxl_error);
-  // if (dxl_comm_result != COMM_SUCCESS) {
-  //   ROS_ERROR("Failed to enable torque for Dynamixel ID: %d", DXL7_ID);
-  //   return -1;
-  // }
+  dxl_comm_result = packetHandler->write1ByteTxRx(
+    portHandler, DXL8_ID, ADDR_TORQUE_ENABLE, 1, &dxl_error);
+  if (dxl_comm_result != COMM_SUCCESS) {
+    ROS_ERROR("Failed to enable torque for Dynamixel ID: %d", DXL8_ID);
+    return -1;
+  }
 
-  // dxl_comm_result = packetHandler->write1ByteTxRx(
-  //   portHandler, DXL7_ID, ADDR_OPER_MODE, 3, &dxl_error);
-  // if (dxl_comm_result != COMM_SUCCESS) {
-  //   ROS_ERROR("Failed to set position control mode for Dynamixel ID: %d", DXL7_ID);
-  //   return -1;
-  // }
-
-
-  // dxl_comm_result = packetHandler->write1ByteTxRx(
-  //   portHandler, DXL8_ID, ADDR_TORQUE_ENABLE, 1, &dxl_error);
-  // if (dxl_comm_result != COMM_SUCCESS) {
-  //   ROS_ERROR("Failed to enable torque for Dynamixel ID: %d", DXL8_ID);
-  //   return -1;
-  // }
-
-  // dxl_comm_result = packetHandler->write1ByteTxRx(
-  //   portHandler, DXL8_ID, ADDR_OPER_MODE, 3, &dxl_error);
-  // if (dxl_comm_result != COMM_SUCCESS) {
-  //   ROS_ERROR("Failed to set position control mode for Dynamixel ID: %d", DXL8_ID);
-  //   return -1;
-  // }
+  dxl_comm_result = packetHandler->write1ByteTxRx(
+    portHandler, DXL8_ID, ADDR_OPER_MODE, 3, &dxl_error);
+  if (dxl_comm_result != COMM_SUCCESS) {
+    ROS_ERROR("Failed to set position control mode for Dynamixel ID: %d", DXL8_ID);
+    return -1;
+  }
 
   // dxl_comm_result = packetHandler->write1ByteTxRx(
   //   portHandler, DXL9_ID, ADDR_TORQUE_ENABLE, 1, &dxl_error);

@@ -14,6 +14,11 @@ using namespace dynamixel;
 #define ADDR_PRESENT_POSITION 132
 #define ADDR_GOAL_POSITION    116
 #define ADDR_OPER_MODE        11
+#define ADDR_PROFILE_ACCELERATION 108
+#define ADDR_PROFILE_VELOCITY 112
+#define ADDR_POSITION_P_GAIN 84
+#define ADDR_POSITION_I_GAIN 82
+#define ADDR_POSITION_D_GAIN 80
 
 // Protocol version
 #define PROTOCOL_VERSION      2.0             // Default Protocol version of DYNAMIXEL X series.
@@ -39,7 +44,12 @@ using namespace dynamixel;
 #define BAUDRATE             1000000            // Default Baudrate of DYNAMIXEL X series
 //set up fixed mount point for the device, this is the same as the one set in the udev rules file.
 #define DEVICE_NAME          "/dev/ttyUSB0"  // [Linux] To find assigned port, use "$ ls /dev/ttyUSB*" command
-
+const uint32_t PROFILE_ACCEL      = 500;  // ≈107 k rev/min²
+const uint32_t PROFILE_VEL        = 10000;  // ≈45.8 rev/min
+const uint32_t P_GAIN_XM          = 144;  // Position P Gain
+const uint32_t D_GAIN_XM          = 24;    // Position I Gain
+const uint32_t P_GAIN_XL          = 81;     // Position D Gain
+const uint32_t D_GAIN_XL          = 18;     // Position D Gain
 // ensure that DXL1_ID, DXL2_ID, DXL3_ID, DXL4_ID are connected to the device labeled DEVICE_NAME1
 // and DXL5_ID, DXL6_ID, DXL7_ID, DXL8_ID are connected to the device labeled DEVICE_NAME2
 
@@ -188,7 +198,8 @@ bool getArmsJointPositionsCallback(
   uint32_t value8 = 0;
   // uint32_t value9 = 0;
   // uint32_t value10 = 0;
-
+  const uint32_t PROFILE_ACCEL      = 500;  // ≈107 k rev/min²
+  const uint32_t PROFILE_VEL        = 200;  // ≈45.8 rev/min
   dxl_comm_result = groupBulkRead.txRxPacket(); 
 
   if (dxl_comm_result == COMM_SUCCESS) {
@@ -584,6 +595,7 @@ int main(int argc, char ** argv)
     return -1;
   }
 
+  // Enable Torque
   dxl_comm_result = packetHandler->write1ByteTxRx(
     portHandler, DXL1_ID, ADDR_TORQUE_ENABLE, 1, &dxl_error);
   if (dxl_comm_result != COMM_SUCCESS) {
@@ -591,12 +603,45 @@ int main(int argc, char ** argv)
     return -1;
   }
 
+  // Enable Position Control Mode
   dxl_comm_result = packetHandler->write1ByteTxRx(
     portHandler, DXL1_ID, ADDR_OPER_MODE, 3, &dxl_error);
   if (dxl_comm_result != COMM_SUCCESS) {
     ROS_ERROR("Failed to set position control mode for Dynamixel ID: %d", DXL1_ID);
     return -1;
   }
+
+  dxl_comm_result = packetHandler->write4ByteTxRx(
+    portHandler, DXL1_ID, ADDR_PROFILE_ACCELERATION, PROFILE_ACCEL, &dxl_error);
+  if (dxl_comm_result != COMM_SUCCESS || dxl_error != 0) {
+    ROS_ERROR("Failed to set Profile Accel for Dynamixel ID %d", DXL1_ID);
+    return -1;
+  }
+  
+  dxl_comm_result = packetHandler->write4ByteTxRx(
+    portHandler, DXL1_ID, ADDR_PROFILE_VELOCITY, PROFILE_VEL, &dxl_error);
+  if (dxl_comm_result != COMM_SUCCESS || dxl_error != 0) {
+    ROS_ERROR("Failed to set Profile Vel for Dynamixel ID %d: ",DXL1_ID);
+    return -1;
+  }
+
+  dxl_comm_result = packetHandler->write2ByteTxRx(
+    portHandler, DXL1_ID, ADDR_POSITION_P_GAIN, P_GAIN_XM, &dxl_error);
+  if (dxl_comm_result != COMM_SUCCESS || dxl_error != 0) {
+    ROS_ERROR("Failed to set P GAIN for Dynamixel ID %d: ",DXL1_ID);
+    return -1;
+  }
+
+  dxl_comm_result = packetHandler->write2ByteTxRx(
+    portHandler, DXL1_ID, ADDR_POSITION_D_GAIN, D_GAIN_XM, &dxl_error);
+  if (dxl_comm_result != COMM_SUCCESS || dxl_error != 0) {
+    ROS_ERROR("Failed to set D GAIN for Dynamixel ID %d: ",DXL1_ID);
+    return -1;
+  }
+
+
+
+
 
   dxl_comm_result = packetHandler->write1ByteTxRx(
     portHandler, DXL2_ID, ADDR_TORQUE_ENABLE, 1, &dxl_error);
@@ -612,6 +657,38 @@ int main(int argc, char ** argv)
     return -1;
   }
 
+  dxl_comm_result = packetHandler->write4ByteTxRx(
+    portHandler, DXL2_ID, ADDR_PROFILE_ACCELERATION, PROFILE_ACCEL, &dxl_error);
+  if (dxl_comm_result != COMM_SUCCESS || dxl_error != 0) {
+    ROS_ERROR("Failed to set Profile Accel for Dynamixel ID %d", DXL2_ID);
+    return -1;
+  }
+  
+  dxl_comm_result = packetHandler->write4ByteTxRx(
+    portHandler, DXL2_ID, ADDR_PROFILE_VELOCITY, PROFILE_VEL, &dxl_error);
+  if (dxl_comm_result != COMM_SUCCESS || dxl_error != 0) {
+    ROS_ERROR("Failed to set Profile Vel for Dynamixel ID %d: ",DXL2_ID);
+    return -1;
+  }
+
+  dxl_comm_result = packetHandler->write2ByteTxRx(
+    portHandler, DXL2_ID, ADDR_POSITION_P_GAIN, P_GAIN_XM, &dxl_error);
+  if (dxl_comm_result != COMM_SUCCESS || dxl_error != 0) {
+    ROS_ERROR("Failed to set P GAIN for Dynamixel ID %d: ",DXL2_ID);
+    return -1;
+  }
+
+  dxl_comm_result = packetHandler->write2ByteTxRx(
+    portHandler, DXL2_ID, ADDR_POSITION_D_GAIN, D_GAIN_XM, &dxl_error);
+  if (dxl_comm_result != COMM_SUCCESS || dxl_error != 0) {
+    ROS_ERROR("Failed to set D GAIN for Dynamixel ID %d: ",DXL2_ID);
+    return -1;
+  }
+
+
+
+
+
   dxl_comm_result = packetHandler->write1ByteTxRx(
     portHandler, DXL3_ID, ADDR_TORQUE_ENABLE, 1, &dxl_error);
   if (dxl_comm_result != COMM_SUCCESS) {
@@ -625,6 +702,38 @@ int main(int argc, char ** argv)
     ROS_ERROR("Failed to set position control mode for Dynamixel ID: %d", DXL3_ID);
     return -1;
   }
+
+  dxl_comm_result = packetHandler->write4ByteTxRx(
+    portHandler, DXL3_ID, ADDR_PROFILE_ACCELERATION, PROFILE_ACCEL, &dxl_error);
+  if (dxl_comm_result != COMM_SUCCESS || dxl_error != 0) {
+    ROS_ERROR("Failed to set Profile Accel for Dynamixel ID %d", DXL3_ID);
+    return -1;
+  }
+  
+  dxl_comm_result = packetHandler->write4ByteTxRx(
+    portHandler, DXL3_ID, ADDR_PROFILE_VELOCITY, PROFILE_VEL, &dxl_error);
+  if (dxl_comm_result != COMM_SUCCESS || dxl_error != 0) {
+    ROS_ERROR("Failed to set Profile Vel for Dynamixel ID %d: ",DXL3_ID);
+    return -1;
+  }
+
+  dxl_comm_result = packetHandler->write2ByteTxRx(
+    portHandler, DXL3_ID, ADDR_POSITION_P_GAIN, P_GAIN_XL, &dxl_error);
+  if (dxl_comm_result != COMM_SUCCESS || dxl_error != 0) {
+    ROS_ERROR("Failed to set P GAIN for Dynamixel ID %d: ",DXL3_ID);
+    return -1;
+  }
+
+  dxl_comm_result = packetHandler->write2ByteTxRx(
+    portHandler, DXL3_ID, ADDR_POSITION_D_GAIN, D_GAIN_XL, &dxl_error);
+  if (dxl_comm_result != COMM_SUCCESS || dxl_error != 0) {
+    ROS_ERROR("Failed to set D GAIN for Dynamixel ID %d: ",DXL3_ID);
+    return -1;
+  }
+
+
+
+
 
   dxl_comm_result = packetHandler->write1ByteTxRx(
     portHandler, DXL4_ID, ADDR_TORQUE_ENABLE, 1, &dxl_error);
@@ -640,19 +749,81 @@ int main(int argc, char ** argv)
     return -1;
   }
 
+    dxl_comm_result = packetHandler->write4ByteTxRx(
+    portHandler, DXL4_ID, ADDR_PROFILE_ACCELERATION, PROFILE_ACCEL, &dxl_error);
+  if (dxl_comm_result != COMM_SUCCESS || dxl_error != 0) {
+    ROS_ERROR("Failed to set Profile Accel for Dynamixel ID %d", DXL4_ID);
+    return -1;
+  }
+  
+  dxl_comm_result = packetHandler->write4ByteTxRx(
+    portHandler, DXL4_ID, ADDR_PROFILE_VELOCITY, PROFILE_VEL, &dxl_error);
+  if (dxl_comm_result != COMM_SUCCESS || dxl_error != 0) {
+    ROS_ERROR("Failed to set Profile Vel for Dynamixel ID %d: ",DXL4_ID);
+    return -1;
+  }
+
+  dxl_comm_result = packetHandler->write2ByteTxRx(
+    portHandler, DXL4_ID, ADDR_POSITION_P_GAIN, P_GAIN_XL, &dxl_error);
+  if (dxl_comm_result != COMM_SUCCESS || dxl_error != 0) {
+    ROS_ERROR("Failed to set P GAIN for Dynamixel ID %d: ",DXL4_ID);
+    return -1;
+  }
+
+  dxl_comm_result = packetHandler->write2ByteTxRx(
+    portHandler, DXL4_ID, ADDR_POSITION_D_GAIN, D_GAIN_XL, &dxl_error);
+  if (dxl_comm_result != COMM_SUCCESS || dxl_error != 0) {
+    ROS_ERROR("Failed to set D GAIN for Dynamixel ID %d: ",DXL4_ID);
+    return -1;
+  }
+
+
+
+
   dxl_comm_result = packetHandler->write1ByteTxRx(
     portHandler, DXL5_ID, ADDR_TORQUE_ENABLE, 1, &dxl_error);
   if (dxl_comm_result != COMM_SUCCESS) {
     ROS_ERROR("Failed to enable torque for Dynamixel ID: %d", DXL5_ID);
     return -1;
   }
-
+  
   dxl_comm_result = packetHandler->write1ByteTxRx(
     portHandler, DXL5_ID, ADDR_OPER_MODE, 3, &dxl_error);
   if (dxl_comm_result != COMM_SUCCESS) {
     ROS_ERROR("Failed to set position control mode for Dynamixel ID: %d", DXL5_ID);
     return -1;
   }
+
+    dxl_comm_result = packetHandler->write4ByteTxRx(
+    portHandler, DXL5_ID, ADDR_PROFILE_ACCELERATION, PROFILE_ACCEL, &dxl_error);
+  if (dxl_comm_result != COMM_SUCCESS || dxl_error != 0) {
+    ROS_ERROR("Failed to set Profile Accel for Dynamixel ID %d", DXL5_ID);
+    return -1;
+  }
+  
+  dxl_comm_result = packetHandler->write4ByteTxRx(
+    portHandler, DXL5_ID, ADDR_PROFILE_VELOCITY, PROFILE_VEL, &dxl_error);
+  if (dxl_comm_result != COMM_SUCCESS || dxl_error != 0) {
+    ROS_ERROR("Failed to set Profile Vel for Dynamixel ID %d: ",DXL5_ID);
+    return -1;
+  }
+
+  dxl_comm_result = packetHandler->write2ByteTxRx(
+    portHandler, DXL5_ID, ADDR_POSITION_P_GAIN, P_GAIN_XM, &dxl_error);
+  if (dxl_comm_result != COMM_SUCCESS || dxl_error != 0) {
+    ROS_ERROR("Failed to set P GAIN for Dynamixel ID %d: ",DXL5_ID);
+    return -1;
+  }
+
+  dxl_comm_result = packetHandler->write2ByteTxRx(
+    portHandler, DXL5_ID, ADDR_POSITION_D_GAIN, D_GAIN_XM, &dxl_error);
+  if (dxl_comm_result != COMM_SUCCESS || dxl_error != 0) {
+    ROS_ERROR("Failed to set D GAIN for Dynamixel ID %d: ",DXL5_ID);
+    return -1;
+  }
+
+
+
 
 
   dxl_comm_result = packetHandler->write1ByteTxRx(
@@ -669,6 +840,40 @@ int main(int argc, char ** argv)
     return -1;
   }
 
+    dxl_comm_result = packetHandler->write4ByteTxRx(
+    portHandler, DXL6_ID, ADDR_PROFILE_ACCELERATION, PROFILE_ACCEL, &dxl_error);
+  if (dxl_comm_result != COMM_SUCCESS || dxl_error != 0) {
+    ROS_ERROR("Failed to set Profile Accel for Dynamixel ID %d", DXL6_ID);
+    return -1;
+  }
+  
+  dxl_comm_result = packetHandler->write4ByteTxRx(
+    portHandler, DXL6_ID, ADDR_PROFILE_VELOCITY, PROFILE_VEL, &dxl_error);
+  if (dxl_comm_result != COMM_SUCCESS || dxl_error != 0) {
+    ROS_ERROR("Failed to set Profile Vel for Dynamixel ID %d: ",DXL6_ID);
+    return -1;
+  }
+
+  dxl_comm_result = packetHandler->write2ByteTxRx(
+    portHandler, DXL6_ID, ADDR_POSITION_P_GAIN, P_GAIN_XM, &dxl_error);
+  if (dxl_comm_result != COMM_SUCCESS || dxl_error != 0) {
+    ROS_ERROR("Failed to set P GAIN for Dynamixel ID %d: ",DXL6_ID);
+    return -1;
+  }
+
+  dxl_comm_result = packetHandler->write2ByteTxRx(
+    portHandler, DXL6_ID, ADDR_POSITION_D_GAIN, D_GAIN_XM, &dxl_error);
+  if (dxl_comm_result != COMM_SUCCESS || dxl_error != 0) {
+    ROS_ERROR("Failed to set D GAIN for Dynamixel ID %d: ",DXL6_ID);
+    return -1;
+  }
+
+
+
+
+
+
+
 
   dxl_comm_result = packetHandler->write1ByteTxRx(
     portHandler, DXL7_ID, ADDR_TORQUE_ENABLE, 1, &dxl_error);
@@ -684,6 +889,39 @@ int main(int argc, char ** argv)
     return -1;
   }
 
+    dxl_comm_result = packetHandler->write4ByteTxRx(
+    portHandler, DXL7_ID, ADDR_PROFILE_ACCELERATION, PROFILE_ACCEL, &dxl_error);
+  if (dxl_comm_result != COMM_SUCCESS || dxl_error != 0) {
+    ROS_ERROR("Failed to set Profile Accel for Dynamixel ID %d", DXL7_ID);
+    return -1;
+  }
+  
+  dxl_comm_result = packetHandler->write4ByteTxRx(
+    portHandler, DXL7_ID, ADDR_PROFILE_VELOCITY, PROFILE_VEL, &dxl_error);
+  if (dxl_comm_result != COMM_SUCCESS || dxl_error != 0) {
+    ROS_ERROR("Failed to set Profile Vel for Dynamixel ID %d: ",DXL7_ID);
+    return -1;
+  }
+
+  dxl_comm_result = packetHandler->write2ByteTxRx(
+    portHandler, DXL7_ID, ADDR_POSITION_P_GAIN, P_GAIN_XL, &dxl_error);
+  if (dxl_comm_result != COMM_SUCCESS || dxl_error != 0) {
+    ROS_ERROR("Failed to set P GAIN for Dynamixel ID %d: ",DXL7_ID);
+    return -1;
+  }
+
+  dxl_comm_result = packetHandler->write2ByteTxRx(
+    portHandler, DXL7_ID, ADDR_POSITION_D_GAIN, D_GAIN_XL, &dxl_error);
+  if (dxl_comm_result != COMM_SUCCESS || dxl_error != 0) {
+    ROS_ERROR("Failed to set D GAIN for Dynamixel ID %d: ",DXL7_ID);
+    return -1;
+  }
+
+
+
+
+
+
 
   dxl_comm_result = packetHandler->write1ByteTxRx(
     portHandler, DXL8_ID, ADDR_TORQUE_ENABLE, 1, &dxl_error);
@@ -696,6 +934,35 @@ int main(int argc, char ** argv)
     portHandler, DXL8_ID, ADDR_OPER_MODE, 3, &dxl_error);
   if (dxl_comm_result != COMM_SUCCESS) {
     ROS_ERROR("Failed to set position control mode for Dynamixel ID: %d", DXL8_ID);
+    return -1;
+  }
+
+
+    dxl_comm_result = packetHandler->write4ByteTxRx(
+    portHandler, DXL8_ID, ADDR_PROFILE_ACCELERATION, PROFILE_ACCEL, &dxl_error);
+  if (dxl_comm_result != COMM_SUCCESS || dxl_error != 0) {
+    ROS_ERROR("Failed to set Profile Accel for Dynamixel ID %d", DXL8_ID);
+    return -1;
+  }
+  
+  dxl_comm_result = packetHandler->write4ByteTxRx(
+    portHandler, DXL8_ID, ADDR_PROFILE_VELOCITY, PROFILE_VEL, &dxl_error);
+  if (dxl_comm_result != COMM_SUCCESS || dxl_error != 0) {
+    ROS_ERROR("Failed to set Profile Vel for Dynamixel ID %d: ",DXL8_ID);
+    return -1;
+  }
+
+  dxl_comm_result = packetHandler->write2ByteTxRx(
+    portHandler, DXL8_ID, ADDR_POSITION_P_GAIN, P_GAIN_XL, &dxl_error);
+  if (dxl_comm_result != COMM_SUCCESS || dxl_error != 0) {
+    ROS_ERROR("Failed to set P GAIN for Dynamixel ID %d: ",DXL8_ID);
+    return -1;
+  }
+
+  dxl_comm_result = packetHandler->write2ByteTxRx(
+    portHandler, DXL8_ID, ADDR_POSITION_D_GAIN, D_GAIN_XL, &dxl_error);
+  if (dxl_comm_result != COMM_SUCCESS || dxl_error != 0) {
+    ROS_ERROR("Failed to set D GAIN for Dynamixel ID %d: ",DXL8_ID);
     return -1;
   }
 
@@ -736,4 +1003,3 @@ int main(int argc, char ** argv)
   portHandler->closePort();
   return 0;
 }
-

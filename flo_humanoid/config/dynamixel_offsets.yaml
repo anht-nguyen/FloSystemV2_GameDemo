@@ -15,5 +15,5 @@ offsets:
   # -------------  RIGHT ARM -------------
   r1:  48        # right_shoulder_flexionextension
   r2:  136       # right_shoulder_abductionadduction
-  r3:  172       # right_elbow_flexionextension
+  r3:  185       # right_elbow_flexionextension
   r4:  280      # right_elbow_rotation

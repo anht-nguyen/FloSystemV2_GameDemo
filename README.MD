@@ -50,7 +50,7 @@ FloSystemV2_GameDemo/
 
 ## Prerequisites
 
-### Setting up Host machine
+### Setting up Host machine (for Linux-based systems)
 
 1. Install Ubuntu 22 or 24
 2. Install [docker](https://docs.docker.com/engine/install/ubuntu/) and complete the post installation steps, then test docker by running the hello world image
@@ -117,6 +117,22 @@ FloSystemV2_GameDemo/
    sudo systemctl enable flogame.service
    ```
 
+### Setting up Host machine (for Window-based systems)
+
+1. Install [docker](https://code.visualstudio.com/download) and complete the post installation steps, then test docker by running the hello world image by going to powershell and typing:
+
+   ```
+   docker --version
+   docker run hello world
+   ```
+2. Install an IDE 
+3. Install [git](https://git-scm.com/downloads)
+4. Clone this repo into any document folder on your system (suggested to be through VSCode)
+5. If on VSCode, make sure to download these extensions: Docker, Dev Containers, Container Tools, (WSL extension is optional and used for if you put WSL2 backend on docker installation)
+6. Set up AWS Polly: You need to setup [Amazon Polly](#amazon-polly) This should be as easy as just answering the questions during the install script.
+
+  a. Create `certs` directory:
+
 ---
 
 ## Building and Running with Docker
@@ -174,7 +190,7 @@ and output set to json.
 
 A few notes:
 
-- you should probably restrict what the user that is getting access can do. The
+- You should probably restrict what the user that is getting access can do. The
   best option is to set the permissions to AmazonPollyReadOnlyAccess
 - You can have other users configured. By changing the --profile, you control
   the name of the user if no profile is specified, then the information is saved
@@ -190,7 +206,7 @@ A few notes:
   `aws polly synthesize-speech --output-format mp3 --voice-id Ivy --text 'hello, this is a test' --profile flo test.mp3`
   and then play the audio by installing: `sudo apt install mpg123` and typing
   `mpg123 test.mp3`
-- you might find that you are getting some sort of server connection errors. you
+- You might find that you are getting some sort of server connection errors. you
   can resolve that by running `pip3 install -U boto3` (this should now be a part
   of the install script, but it is commented out)
 

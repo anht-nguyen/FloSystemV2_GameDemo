@@ -82,6 +82,8 @@ class JointStateToDxlBridge:
         #     0,
         #     0
         # )
+
+        
         self.pub.publish(cmd)
         rospy.logdebug(
             f"Published DXL positions: L[{l1:.1f},{l2:.1f},{l3:.1f},{l4:.1f}], "

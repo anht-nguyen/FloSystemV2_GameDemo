@@ -5,9 +5,9 @@ set -e
 
 # 0) load ROS & workspace overlays
 
-source /opt/ros/noetic/setup.bash
-source /catkin_ws/devel/setup.bash
-/usr/bin/udevadm control --reload-rules && /usr/bin/udevadm trigger # ensure udev inside the container sees the camera
+# source /opt/ros/noetic/setup.bash
+# source /catkin_ws/devel/setup.bash
+# /usr/bin/udevadm control --reload-rules && /usr/bin/udevadm trigger # ensure udev inside the container sees the camera
 
 # 1) Start tmux session named “ros”
 tmux new-session -d -s ros 'roscore'
@@ -26,7 +26,9 @@ tmux new-window -t ros:4 -n vision_monitor 'rostopic echo /arm_hand_tracker/pose
 sleep 2
 tmux new-window -t ros:5 -n face 'roslaunch flo_face flo_face_launcher.launch' #uncomment to run the face tracker node
 sleep 5
-tmux new-window -t ros:6 -n game_runner 'roslaunch flo_core simonsays_launcher_prod.launch' #launch the game runner
+tmux new-window -t ros:6 -n hw_if 'roslaunch flo_humanoid dual_arm_hardware.launch' #launch the hardware interface
+sleep 5
+tmux new-window -t ros:7 -n game_runner 'roslaunch flo_core simonsays_launcher_prod.launch' #launch the game runner
 
 # 3) (optional) Attach so you see the tmux panes on “docker attach”
 # tmux attach -t ros

@@ -39,7 +39,7 @@ RULES_SPEECH = """
     If I do not say simon says, you should not do the action.
     Watch out, I may try to trick you.
     After every movement return to a ready position.
-    Are you ready to play?
+    Are you ready to play? 
     """
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -130,7 +130,7 @@ class CalibrationStage:
         self._cmd_pub.publish(True)
         self._prompt_pub.publish("Let’s do a quick camera check…")
         self._tts.speak(
-            "Please raise your arm fully overhead and hold it there."
+            "Let's first make sure the camera can see you well. Please raise your arm fully overhead and hold it there."
         )
 
         rate = rospy.Rate(10)
@@ -677,6 +677,7 @@ class GameController:
             # Let the GUI show the same text via its /prompt callback
             # self.prompt_pub.publish(WELCOME_SPEECH.strip())
 
+            self.tts.speak("Hi there!")
             # --- Speak & wave concurrently --------------------------------
             tts_thread = threading.Thread(
                 target=self.tts.speak, args=(WELCOME_SPEECH,)

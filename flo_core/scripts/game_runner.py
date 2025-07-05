@@ -323,6 +323,42 @@ class PublishEmotionState(smach.State):
         rospy.sleep(rospy.Duration(delay))
         return "done"
 
+class FeedbackState(smach.State):
+    """
+    Publishes an emotion **and** (optionally) speaks a randomly-chosen phrase.
+    """
+    def __init__(self,
+                 emotion_val: int,
+                 phrases: list[str],
+                 tts_client):
+        super().__init__(outcomes=["done"],
+                         input_keys=["face_duration"])
+        self._emotion_val = emotion_val
+        self._phrases     = phrases
+        self._tts         = tts_client
+        self._emotion_pub = rospy.Publisher(
+            "/emotion", Emotion, queue_size=1, latch=True)
+
+    # ------------------------------------------------------------------
+    def execute(self, ud):
+        # 1) show the face
+        self._emotion_pub.publish(Emotion(state=self._emotion_val))
+
+        # 2) randomly decide whether / what to say
+        phrase = random.choice(self._phrases)
+        if phrase:                           # empty string  ➜  silence
+            self._tts.speak(phrase)
+
+        # 3) keep the face for N seconds
+        rospy.sleep(rospy.Duration(ud.face_duration))
+
+        # 4) optional inter-turn delay
+        delay = float(rospy.get_param('~inter_turn_delay', 0.0))
+        rospy.loginfo(f"Inter-turn delay: {delay}s")
+        rospy.sleep(rospy.Duration(delay))
+        return "done"
+
+
 class NextTurnFromSequence(smach.State):
     """
     Advances turn_idx and loads the pre-generated gesture from 'sequence'.
@@ -562,8 +598,34 @@ def build_sm(sequence: list[tuple[Action,Action,bool]], params, score_pub, promp
         smach.StateMachine.add("PAUSE_AFTER_EVAL", PauseAfterEvaluateState(controller),
                                 transitions={"good": "REWARD", "bad": "FAIL"})
 
-        smach.StateMachine.add("REWARD", PublishEmotionState(Emotion.HAPPY), transitions={"done":"NEXT_TURN"})
-        smach.StateMachine.add("FAIL", PublishEmotionState(Emotion.SAD), transitions={"done":"NEXT_TURN"})
+        # smach.StateMachine.add("REWARD", PublishEmotionState(Emotion.HAPPY), transitions={"done":"NEXT_TURN"})
+        # smach.StateMachine.add("FAIL", PublishEmotionState(Emotion.SAD), transitions={"done":"NEXT_TURN"})
+
+        # ------------------------------------------------------------------
+        # 4-choice phrase lists (add / adjust as you like)
+        reward_lines = [
+            "Great job!", 
+            "Nice one!", 
+            "Well done!", 
+            ""                    # ← silent variant
+        ]
+        fail_lines = [
+            "Almost!", 
+            "Not this time.", 
+            ""
+        ]
+
+        smach.StateMachine.add(
+            "REWARD",
+            FeedbackState(Emotion.HAPPY, reward_lines, controller.tts),
+            transitions={"done": "NEXT_TURN"}
+        )
+        smach.StateMachine.add(
+            "FAIL",
+            FeedbackState(Emotion.SAD, fail_lines, controller.tts),
+            transitions={"done": "NEXT_TURN"}
+        )
+
 
         class NextTurnWithPause(NextTurnFromSequence):
             def __init__(self, sequence):

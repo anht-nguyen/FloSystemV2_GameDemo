@@ -124,7 +124,7 @@ FloSystemV2_GameDemo/
     sudo reboot
     # After login:
     systemctl status flo_game.service
-    tail -n 50 /var/log/flo_game_startup.log
+    tail -n 50 $HOME/flo_game_startup.log
    ```
    
 

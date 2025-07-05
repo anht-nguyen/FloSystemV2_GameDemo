@@ -323,6 +323,105 @@ class PublishEmotionState(smach.State):
         rospy.sleep(rospy.Duration(delay))
         return "done"
 
+class FeedbackState(smach.State):
+    """
+    Publishes an emotion **and** (optionally) speaks a randomly-chosen phrase.
+    """
+    def __init__(self,
+                 emotion_val: int,
+                 phrases: list[str],
+                 tts_client):
+        super().__init__(outcomes=["done"],
+                         input_keys=["face_duration"])
+        self._emotion_val = emotion_val
+        self._phrases     = phrases
+        self._tts         = tts_client
+        self._emotion_pub = rospy.Publisher(
+            "/emotion", Emotion, queue_size=1, latch=True)
+
+    # ------------------------------------------------------------------
+    def execute(self, ud):
+        # 1) show the face
+        self._emotion_pub.publish(Emotion(state=self._emotion_val))
+
+        # 2) randomly decide whether / what to say
+        phrase = random.choice(self._phrases)
+        if phrase:                           # empty string  ➜  silence
+            self._tts.speak(phrase)
+
+        # 3) keep the face for N seconds
+        rospy.sleep(rospy.Duration(ud.face_duration))
+
+        # 4) optional inter-turn delay
+        delay = float(rospy.get_param('~inter_turn_delay', 0.0))
+        rospy.loginfo(f"Inter-turn delay: {delay}s")
+        rospy.sleep(rospy.Duration(delay))
+        return "done"
+
+class FailFeedbackState(smach.State):
+    """
+    Shows the sad face **and** speaks a context-aware quip.
+
+    • If the last turn had simon_says == False  ➜  the player was tricked
+      → choose from fail_lines_tricked  (“Gotcha!”, …).
+
+    • Otherwise it was a normal miss  ➜  choose from fail_lines_missed.
+    """
+    def __init__(self, tts_client):
+        super().__init__(
+            outcomes=["done"],
+            input_keys=["face_duration", "simon_says"],
+        )
+        self._pub = rospy.Publisher("/emotion", Emotion, queue_size=1, latch=True)
+        self._tts = tts_client
+
+        # ----- Edit these lists anytime ----------------------------------
+        self.fail_lines_tricked = [
+            "Gotcha!", "Simon didn’t say!", "Fooled you!", ""
+        ]
+        self.fail_lines_missed  = [
+            "Not quite.", "Try the next one.", "Almost!", ""
+        ]
+
+    # ------------------------------------------------------------------
+    def execute(self, ud):
+        # 1) sad face
+        self._pub.publish(Emotion(state=Emotion.SAD))
+
+        # 2) pick a phrase
+        pool   = self.fail_lines_tricked if not ud.simon_says else self.fail_lines_missed
+        phrase = random.choice(pool)
+        if phrase:                    # empty string  ➜  silent variant
+            self._tts.speak(phrase)
+
+        # 3) hold face, then normal inter-turn delay
+        rospy.sleep(rospy.Duration(ud.face_duration))
+        delay = float(rospy.get_param("~inter_turn_delay", 0.0))
+        rospy.sleep(rospy.Duration(delay))
+        return "done"
+
+
+class ReturnHomeState(smach.State):
+    """
+    Sends a 'HOME' pose command after each turn so the robot
+    always goes back to its starting position.
+    """
+    def __init__(self, action_client: SimpleActionClient):
+        super().__init__(outcomes=["done"])
+        self._client = action_client
+
+    def execute(self, ud):
+        # Build and send the HOME pose goal
+        home_goal = SimonCmdGoal(
+            gesture_name="HOME_left|HOME_right",   # name of your home pose in the action server
+            simon_says=True        # doesn't matter for HOME, but must be set
+        )
+        rospy.loginfo("[RETURN_HOME] sending robot to HOME pose")
+        self._client.send_goal(home_goal)
+        self._client.wait_for_result()
+        return "done"
+
+
 class NextTurnFromSequence(smach.State):
     """
     Advances turn_idx and loads the pre-generated gesture from 'sequence'.
@@ -385,8 +484,6 @@ class PauseAfterEvaluateState(smach.State):
                 rospy.loginfo(f"[PAUSE] Resuming. Routing to outcome: {ud.eval_outcome}")
                 return ud.eval_outcome
             rate.sleep()
-
-
 
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -474,7 +571,7 @@ def build_sm(sequence: list[tuple[Action,Action,bool]], params, score_pub, promp
                             SimonCmdAction,
                             goal_cb=_goal_cb,
                             input_keys=["left_action", "right_action", "simon_says"],
-                            exec_timeout=rospy.Duration(10.0),
+                            exec_timeout=rospy.Duration(20.0),
                         ),
                     )
                     smach.Concurrence.add("POSE", WaitForPoseWithPause())
@@ -562,8 +659,35 @@ def build_sm(sequence: list[tuple[Action,Action,bool]], params, score_pub, promp
         smach.StateMachine.add("PAUSE_AFTER_EVAL", PauseAfterEvaluateState(controller),
                                 transitions={"good": "REWARD", "bad": "FAIL"})
 
-        smach.StateMachine.add("REWARD", PublishEmotionState(Emotion.HAPPY), transitions={"done":"NEXT_TURN"})
-        smach.StateMachine.add("FAIL", PublishEmotionState(Emotion.SAD), transitions={"done":"NEXT_TURN"})
+        # smach.StateMachine.add("REWARD", PublishEmotionState(Emotion.HAPPY), transitions={"done":"NEXT_TURN"})
+        # smach.StateMachine.add("FAIL", PublishEmotionState(Emotion.SAD), transitions={"done":"NEXT_TURN"})
+
+        # ------------------------------------------------------------------
+        # 4-choice phrase lists (add / adjust as you like)
+        reward_lines = [
+            "Great job!", 
+            "Nice one!", 
+            "Well done!", 
+            ""                    # ← silent variant
+        ]
+
+        smach.StateMachine.add(
+            "REWARD",
+            FeedbackState(Emotion.HAPPY, reward_lines, controller.tts),
+            transitions={"done": "RETURN_HOME"}
+        )
+        smach.StateMachine.add(
+            "FAIL",
+            FailFeedbackState(controller.tts),
+            transitions={"done": "RETURN_HOME"}
+        )
+
+        # ⏪ After either REWARD or FAIL, go home before NEXT_TURN
+        smach.StateMachine.add(
+            "RETURN_HOME",
+            ReturnHomeState(controller.cmd_client),
+            transitions={"done": "NEXT_TURN"}
+        )
 
         class NextTurnWithPause(NextTurnFromSequence):
             def __init__(self, sequence):
@@ -642,6 +766,9 @@ class GameController:
         # ── Set neutral face immediately 
         self.emotion_pub.publish(Emotion(state=Emotion.NEUTRAL))
 
+        self.cmd_client = SimpleActionClient("/simon_cmd", SimonCmdAction)
+        self.cmd_client.wait_for_server()
+
         # Build state machine, passing in our fixed sequence
         self.sm = build_sm(self.sequence, self.params, self.score_pub, self.prompt_pub, self)
         # Introspection for viz
@@ -658,8 +785,7 @@ class GameController:
         # intro-thread state flags
         self.intro_in_progress = False
         # action-client for intro waving
-        self.cmd_client = SimpleActionClient("/simon_cmd", SimonCmdAction)
-        self.cmd_client.wait_for_server()
+
         # Start the introspection server
         self.game_thread = None            # keep a handle so we can join()
 

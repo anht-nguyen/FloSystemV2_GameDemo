@@ -22,7 +22,8 @@ class PollyTTSStream:
             format=pyaudio.paInt16,
             channels=1,
             rate=self.sample_rate,
-            output=True
+            output=True,
+            frames_per_buffer=4096  # Buffer size for streaming
         )
 
     def speak(self, text: str):

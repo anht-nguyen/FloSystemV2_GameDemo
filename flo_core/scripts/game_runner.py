@@ -401,6 +401,26 @@ class FailFeedbackState(smach.State):
         return "done"
 
 
+class ReturnHomeState(smach.State):
+    """
+    Sends a 'HOME' pose command after each turn so the robot
+    always goes back to its starting position.
+    """
+    def __init__(self, action_client: SimpleActionClient):
+        super().__init__(outcomes=["done"])
+        self._client = action_client
+
+    def execute(self, ud):
+        # Build and send the HOME pose goal
+        home_goal = SimonCmdGoal(
+            gesture_name="HOME",   # name of your home pose in the action server
+            simon_says=True        # doesn't matter for HOME, but must be set
+        )
+        rospy.loginfo("[RETURN_HOME] sending robot to HOME pose")
+        self._client.send_goal(home_goal)
+        self._client.wait_for_result()
+        return "done"
+
 
 class NextTurnFromSequence(smach.State):
     """
@@ -464,8 +484,6 @@ class PauseAfterEvaluateState(smach.State):
                 rospy.loginfo(f"[PAUSE] Resuming. Routing to outcome: {ud.eval_outcome}")
                 return ud.eval_outcome
             rate.sleep()
-
-
 
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -656,11 +674,18 @@ def build_sm(sequence: list[tuple[Action,Action,bool]], params, score_pub, promp
         smach.StateMachine.add(
             "REWARD",
             FeedbackState(Emotion.HAPPY, reward_lines, controller.tts),
-            transitions={"done": "NEXT_TURN"}
+            transitions={"done": "RETURN_HOME"}
         )
         smach.StateMachine.add(
             "FAIL",
             FailFeedbackState(controller.tts),
+            transitions={"done": "RETURN_HOME"}
+        )
+
+        # ⏪ After either REWARD or FAIL, go home before NEXT_TURN
+        smach.StateMachine.add(
+            "RETURN_HOME",
+            ReturnHomeState(controller.cmd_client),
             transitions={"done": "NEXT_TURN"}
         )
 

@@ -183,7 +183,7 @@ class Announce(smach.State):
         self.prompt_pub = prompt_pub
         self.turn_pub = turn_pub
         self.tts_client = tts_client
-        self.pose_cmd_pub = rospy.Publisher("/arm_hand_tracker/pose_command", String, queue_size=1)
+        self.pose_cmd_pub = rospy.Publisher("/arm_hand_tracker/pose_command", String, queue_size=1, latch = True)
 
     def execute(self, ud):
         left = ud.left_action.name if ud.left_action else ""

@@ -330,8 +330,8 @@ class NextTurnFromSequence(smach.State):
     def __init__(self, sequence: list[tuple[Action,Action,bool]]):
         super().__init__(
             outcomes=["continue", "finished"],
-            input_keys=["turn_idx", "total_rounds"],
-            output_keys=["turn_idx", "left_action", "right_action", "simon_says"],
+            input_keys=["turn_idx", "total_rounds", 'static_threshold'],
+            output_keys=["turn_idx", "left_action", "right_action", "simon_says", 'success_threshold'],
         )
         self._sequence = sequence
 
@@ -343,6 +343,10 @@ class NextTurnFromSequence(smach.State):
         ud.left_action  = l
         ud.right_action = r
         ud.simon_says   = s
+        if not s:
+            ud.success_threshold = ud.static_threshold
+        else:
+            ud.success_threshold = rospy.get_param("~threshold")
         return "continue"
 
 class PauseWaitState(smach.State):
@@ -399,12 +403,16 @@ def build_sm(sequence: list[tuple[Action,Action,bool]], params, score_pub, promp
         sm.userdata.simon_ratio = params["simon_ratio"]
         sm.userdata.face_duration = params["face_duration"]
         sm.userdata.success_threshold = params["success_threshold"]
+        sm.userdata.static_threshold = params["static_threshold"]
         sm.userdata.pose_matched = False
         # seed the first turn from our sequence
         first_l, first_r, first_s = sequence[0]
         sm.userdata.left_action   = first_l
         sm.userdata.right_action  = first_r
         sm.userdata.simon_says    = first_s
+
+        if not first_s:
+             sm.userdata.success_threshold = sm.userdata.static_threshold
         
         turn_pub = rospy.Publisher('/simon_game/turn_id', Int32, queue_size=1)
 
@@ -598,7 +606,8 @@ class GameController:
             "face_duration": rospy.get_param("~face_duration"),
             "simon_ratio": rospy.get_param("~simon_ratio"),
             "total_rounds": rospy.get_param("~total_rounds"),
-            "success_threshold": rospy.get_param("~threshold")
+            "success_threshold": rospy.get_param("~threshold"),
+            "static_threshold": rospy.get_param("~static_threshold")
         }
 
         # ── status publisher so GUI can enable “Start” when we’re ready ──

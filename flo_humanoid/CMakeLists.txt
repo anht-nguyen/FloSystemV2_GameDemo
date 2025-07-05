@@ -32,9 +32,9 @@ add_message_files(
 
 add_service_files(
   FILES
-    # GetJointPosition.srv
-    # GetJointPositions.srv
-    # GetArmsJointPositions.srv
+    GetJointPosition.srv
+    GetJointPositions.srv
+    GetArmsJointPositions.srv
 )
 
 generate_messages(

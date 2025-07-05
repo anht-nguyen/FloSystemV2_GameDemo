@@ -130,7 +130,7 @@
             [0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0],
             [0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0],
             [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]],
-            "description": "A face to show that flow is amused",
+            "description": "A face to show that flow is slightly amused",
             "eyes" : "small",
             "validated": true,
             "old-name": "amused"

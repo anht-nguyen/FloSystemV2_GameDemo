@@ -107,15 +107,26 @@ FloSystemV2_GameDemo/
 
 6. Automatically startup docker and the game:
 
-   1. Make startup launcher script executable: `chmod +x ./auto_startup_flogame_launcher.sh`
-   2. Copy `flogame.service` to `etc/systemd/system/flogame.service` and replace `your_username` with your actual Linux username
-   3. Enable service:
-
+   1. Install the launcher script: 
    ```sh
-   sudo systemctl daemon-reexec
-   sudo systemctl daemon-reload
-   sudo systemctl enable flogame.service
+    sudo cp auto_startup_flogame_launcher.sh /usr/local/bin/auto_startup_flogame_launcher.sh
+    sudo chown root:root /usr/local/bin/auto_startup_flogame_launcher.sh
+    sudo chmod 755 /usr/local/bin/auto_startup_flogame_launcher.sh
    ```
+   2. Replace `your_username` with your actual Linux username and Install the service file:
+   ```sh
+    sudo cp flo_game.service /etc/systemd/system/flo_game.service
+    sudo systemctl daemon-reload
+    sudo systemctl enable flo_game.service
+   ```
+   3. Reboot and verify:
+   ```sh
+    sudo reboot
+    # After login:
+    systemctl status flo_game.service
+    tail -n 50 /var/log/flo_game_startup.log
+   ```
+   
 
 ---
 

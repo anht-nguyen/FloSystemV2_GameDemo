@@ -139,16 +139,16 @@ class ActionSequenceController:
         )
 
         self._go_home_dual()
-
-        # For now reuse the *single-arm* handlers but merge the named-target
-        # joint dictionaries into a single goal for arm_D.  This keeps the
-        # amount of extra code tiny while guaranteeing simultaneity.
-        self._run_dual_step(left_action, right_action)
-        if left_action in (Action.S_RAISE, Action.D_RAISE, Action.S_REACH_SIDE) \
-        or right_action in (Action.S_RAISE, Action.D_RAISE,Action.S_REACH_SIDE):
-            rospy.sleep(4.0)
-
-        self._go_home_dual()
+        try:
+            # For now reuse the *single-arm* handlers but merge the named-target
+            # joint dictionaries into a single goal for arm_D.  This keeps the
+            # amount of extra code tiny while guaranteeing simultaneity.
+            self._run_dual_step(left_action, right_action)
+            if left_action in (Action.S_RAISE, Action.D_RAISE, Action.S_REACH_SIDE) \
+            or right_action in (Action.S_RAISE, Action.D_RAISE,Action.S_REACH_SIDE):
+                rospy.sleep(4.0)
+        finally:
+            self._go_home_dual()
 
     # ---------- helpers ----------
     def _run_dual_step(self, left_action: Action, right_action: Action):

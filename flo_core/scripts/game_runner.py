@@ -766,6 +766,9 @@ class GameController:
         # ── Set neutral face immediately 
         self.emotion_pub.publish(Emotion(state=Emotion.NEUTRAL))
 
+        self.cmd_client = SimpleActionClient("/simon_cmd", SimonCmdAction)
+        self.cmd_client.wait_for_server()
+
         # Build state machine, passing in our fixed sequence
         self.sm = build_sm(self.sequence, self.params, self.score_pub, self.prompt_pub, self)
         # Introspection for viz
@@ -782,8 +785,7 @@ class GameController:
         # intro-thread state flags
         self.intro_in_progress = False
         # action-client for intro waving
-        self.cmd_client = SimpleActionClient("/simon_cmd", SimonCmdAction)
-        self.cmd_client.wait_for_server()
+
         # Start the introspection server
         self.game_thread = None            # keep a handle so we can join()
 

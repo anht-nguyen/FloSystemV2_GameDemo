@@ -66,7 +66,7 @@ class SimonCmdActionServer:
         rospy.loginfo("[moveit_controller] Initialising MoveIt groups…")
         self.reference_frame = "world"
 
-        time.sleep(5.0) 
+        time.sleep(1.0) 
 
         self.arm_R = moveit_commander.MoveGroupCommander("R")
         self.arm_L = moveit_commander.MoveGroupCommander("L")
@@ -76,8 +76,8 @@ class SimonCmdActionServer:
             grp.allow_replanning(True)
             grp.set_goal_position_tolerance(0.001)
             grp.set_goal_orientation_tolerance(1)
-            grp.set_max_acceleration_scaling_factor(0.6)
-            grp.set_max_velocity_scaling_factor(0.5)
+            grp.set_max_acceleration_scaling_factor(0.9)
+            grp.set_max_velocity_scaling_factor(0.8)
 
         self.controller = ActionSequenceController(arm_R=self.arm_R, arm_L=self.arm_L, arm_D=self.arm_D)
 

@@ -34,7 +34,7 @@ WELCOME_SPEECH = (
     "Welcome to Simon Says game with Flo robot!\n")
 
 RULES_SPEECH = """
-    in simon says, I will tell you something to do and show you how to do it, mirrored.
+    In simon says, I will tell you something to do and show you how to do it in a mirrored style.
     If I say simon says, you should do it with me.
     If I do not say simon says, you should not do the action.
     Watch out, I may try to trick you.
@@ -831,6 +831,11 @@ class GameController:
     # ───────────────────────────────── GAME LOOP ────────────────────────────
     def run_game(self):
         outcome = self.sm.execute()
+        final_score = self.sm.userdata.score
+        total      = self.params["total_rounds"]
+        game_over_text = f"Game Over! Your final score is {final_score} out of {total}."
+        self.prompt_pub.publish(game_over_text)
+        self.tts.speak(game_over_text)
         rospy.loginfo(f"Game finished: {outcome}")
         self.sis.stop()
         self.running = False

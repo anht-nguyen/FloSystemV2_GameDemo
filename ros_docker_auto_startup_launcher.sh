@@ -19,17 +19,17 @@ sleep 5
 
 # 2) In new tmux windows, launch your files
 tmux new-window -t ros:1 -n robot_sim 'roslaunch flo_core full_robot_arm_sim.launch' #launch the robot simulation
-sleep 2
+sleep 5
 tmux new-window -t ros:2 -n camera 'roslaunch flo_vision usb_cam_launcher.launch' # uncomment and complete with camera launch file
 sleep 2
 tmux new-window -t ros:3 -n vision 'roslaunch flo_vision arm_hand_tracker_launcher.launch' #uncomment to run the arm hand tracker node
-sleep 2
+sleep 5
 tmux new-window -t ros:4 -n vision_monitor 'rostopic echo /arm_hand_tracker/pose_score' #uncomment to monitor the arm hand tracker node
 sleep 5
 tmux new-window -t ros:5 -n hw_if 'roslaunch flo_humanoid dual_arm_hardware.launch'
-sleep 2
+sleep 5
 tmux new-window -t ros:6 -n face 'roslaunch flo_face flo_face_launcher.launch' 
-sleep 2
+sleep 5
 tmux new-window -t ros:7 -n game_runner 'roslaunch flo_core simonsays_launcher_prod.launch'
 
 

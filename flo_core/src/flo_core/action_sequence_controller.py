@@ -87,6 +87,7 @@ class ActionSequenceController:
         for _ in range(3):
             arm.set_named_target(f"{arm.get_name()}_waveb")
             arm.go()
+            rospy.sleep(2.0)
             arm.set_named_target(f"{arm.get_name()}_d_bell")
             arm.go()
 
@@ -102,6 +103,7 @@ class ActionSequenceController:
     def _do_raise_static(self, arm) -> None:
         arm.set_named_target(f"{arm.get_name()}_raise")
         arm.go()
+        rospy.sleep(2.0)
 
     def _do_reach_side(self, arm) -> None:
         arm.set_named_target(f"{arm.get_name()}_reach_side")
@@ -142,6 +144,9 @@ class ActionSequenceController:
         # joint dictionaries into a single goal for arm_D.  This keeps the
         # amount of extra code tiny while guaranteeing simultaneity.
         self._run_dual_step(left_action, right_action)
+        if left_action in (Action.S_RAISE, Action.D_RAISE, Action.S_REACH_SIDE) \
+        or right_action in (Action.S_RAISE, Action.D_RAISE,Action.S_REACH_SIDE):
+            rospy.sleep(4.0)
 
         self._go_home_dual()
 

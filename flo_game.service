@@ -1,19 +1,23 @@
 [Unit]
 Description=Auto-start Flo Simon Says Game Docker
-After=network-online.target docker.service
-Wants=docker.service
+# Wait until the network **and** NetworkManager report "online"
+After=network-online.target NetworkManager-wait-online.service docker.service
+Wants=docker.service NetworkManager-wait-online.service
 
 [Service]
 Type=simple
-User=rrl    
+User=rrl
 WorkingDirectory=/home/rrl/FloSystemV2_GameDemo
 ExecStart=/usr/bin/env bash /usr/local/bin/host_auto_startup_launcher.sh
 Restart=on-failure
 RestartSec=10
+
+# GUI / audio env vars (unchanged)
 Environment=DISPLAY=:0
 Environment=XAUTHORITY=/home/rrl/.Xauthority
 Environment=XDG_RUNTIME_DIR=/run/user/1000
 Environment=PULSE_SERVER=unix:/run/user/1000/pulse/native
+
 StandardOutput=journal
 StandardError=journal
 

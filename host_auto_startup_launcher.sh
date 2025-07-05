@@ -1,9 +1,8 @@
-# auto_startup_flogame_launcher.sh
 #!/usr/bin/env bash
 set -euo pipefail
 
 # Log everything to a logfile for diagnostics
-LOGFILE="/var/log/flo_game_startup.log"
+LOGFILE="$HOME/flo_game_startup.log"
 exec &> >(tee -a "$LOGFILE")
 
 # Enter project directory

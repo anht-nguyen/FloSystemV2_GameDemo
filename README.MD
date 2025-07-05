@@ -109,9 +109,9 @@ FloSystemV2_GameDemo/
 
    1. Install the launcher script: 
    ```sh
-    sudo cp auto_startup_flogame_launcher.sh /usr/local/bin/auto_startup_flogame_launcher.sh
-    sudo chown root:root /usr/local/bin/auto_startup_flogame_launcher.sh
-    sudo chmod 755 /usr/local/bin/auto_startup_flogame_launcher.sh
+    sudo cp host_auto_startup_launcher.sh /usr/local/bin/host_auto_startup_launcher.sh
+    sudo chown root:root /usr/local/bin/host_auto_startup_launcher.sh
+    sudo chmod 755 /usr/local/bin/host_auto_startup_launcher.sh
    ```
    2. Replace `your_username` with your actual Linux username and Install the service file:
    ```sh

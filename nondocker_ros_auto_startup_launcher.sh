@@ -22,5 +22,5 @@ tmux new-window -t ros:5 -n hw_if 'roslaunch flo_humanoid dual_arm_hardware.laun
 sleep 2
 tmux new-window -t ros:6 -n face 'roslaunch flo_face flo_face_launcher.launch'
 sleep 2
-tmux new-window -t ros:6 -n game_runner 'roslaunch flo_core simonsays_launcher_prod.launch'
+tmux new-window -t ros:7 -n game_runner 'roslaunch flo_core simonsays_launcher_prod.launch'
 

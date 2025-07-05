@@ -358,6 +358,49 @@ class FeedbackState(smach.State):
         rospy.sleep(rospy.Duration(delay))
         return "done"
 
+class FailFeedbackState(smach.State):
+    """
+    Shows the sad face **and** speaks a context-aware quip.
+
+    • If the last turn had simon_says == False  ➜  the player was tricked
+      → choose from fail_lines_tricked  (“Gotcha!”, …).
+
+    • Otherwise it was a normal miss  ➜  choose from fail_lines_missed.
+    """
+    def __init__(self, tts_client):
+        super().__init__(
+            outcomes=["done"],
+            input_keys=["face_duration", "simon_says"],
+        )
+        self._pub = rospy.Publisher("/emotion", Emotion, queue_size=1, latch=True)
+        self._tts = tts_client
+
+        # ----- Edit these lists anytime ----------------------------------
+        self.fail_lines_tricked = [
+            "Gotcha!", "Simon didn’t say!", "Fooled you!", ""
+        ]
+        self.fail_lines_missed  = [
+            "Not quite.", "Try the next one.", "Almost!", ""
+        ]
+
+    # ------------------------------------------------------------------
+    def execute(self, ud):
+        # 1) sad face
+        self._pub.publish(Emotion(state=Emotion.SAD))
+
+        # 2) pick a phrase
+        pool   = self.fail_lines_tricked if not ud.simon_says else self.fail_lines_missed
+        phrase = random.choice(pool)
+        if phrase:                    # empty string  ➜  silent variant
+            self._tts.speak(phrase)
+
+        # 3) hold face, then normal inter-turn delay
+        rospy.sleep(rospy.Duration(ud.face_duration))
+        delay = float(rospy.get_param("~inter_turn_delay", 0.0))
+        rospy.sleep(rospy.Duration(delay))
+        return "done"
+
+
 
 class NextTurnFromSequence(smach.State):
     """
@@ -609,11 +652,6 @@ def build_sm(sequence: list[tuple[Action,Action,bool]], params, score_pub, promp
             "Well done!", 
             ""                    # ← silent variant
         ]
-        fail_lines = [
-            "Almost!", 
-            "Not this time.", 
-            ""
-        ]
 
         smach.StateMachine.add(
             "REWARD",
@@ -622,10 +660,9 @@ def build_sm(sequence: list[tuple[Action,Action,bool]], params, score_pub, promp
         )
         smach.StateMachine.add(
             "FAIL",
-            FeedbackState(Emotion.SAD, fail_lines, controller.tts),
+            FailFeedbackState(controller.tts),
             transitions={"done": "NEXT_TURN"}
         )
-
 
         class NextTurnWithPause(NextTurnFromSequence):
             def __init__(self, sequence):

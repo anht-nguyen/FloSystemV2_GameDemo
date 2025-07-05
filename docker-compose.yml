@@ -3,28 +3,41 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        UID: ${UID}
+        GID: ${GID}
     image: flo_system_v2_game_demo:latest
     container_name: flo_game
     privileged: true              # required for /dev/video0 & audio
+    user: "${UID}:${GID}"
     environment:
       - DISPLAY=${DISPLAY}
-      - XAUTHORITY=/home/${USER}/.Xauthority
+      - XDG_RUNTIME_DIR=/tmp/pulse   # new path *inside* the container
+      - PULSE_SERVER=unix:/tmp/pulse/native
       - QT_X11_NO_MITSHM=1
       - LIBGL_ALWAYS_INDIRECT=0
       - UDEV=1                    # still useful for hot-plugged devices
+      - AWS_SHARED_CREDENTIALS_FILE=/home/hostuser/.aws/credentials
+      - AWS_CONFIG_FILE=/home/hostuser/.aws/config
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix:ro
-      - ${XAUTHORITY}:/home/${USER}/.Xauthority:ro
-      - ./certs/aws-credentials:/root/.aws/credentials:ro
-      - ./certs/aws-config:/root/.aws/config:ro
+      # PulseWire socket + cookie (read-only is fine)
+      - ${PULSE_DIR}:/tmp/pulse:ro
+      - ${PULSE_DIR}/native:/tmp/pulse/native:ro
+      - ${XAUTHORITY}:/home/hostuser/.Xauthority:ro
+      - ./certs/aws-credentials:/home/hostuser/.aws/credentials:ro
+      - ./certs/aws-config:/home/hostuser/.aws/config:ro
       - /dev/video0:/dev/video0           # pass webcam
-      - /dev/snd:/dev/snd                 # pass audio
+      # - /dev/snd:/dev/snd                 # pass audio
     devices:
       - /dev/video0:/dev/video0           # explicit webcam access
       - /dev/snd:/dev/snd                 # ALSA devices
       - /dev/ttyACM0:/dev/ttyACM0         # keep serial (Arduino, etc.)
     working_dir: /catkin_ws
-    ipc: host
+    # ipc: host
+    group_add:
+      - audio
+      - dialout  
     tty: true
     stdin_open: true
     entrypoint:

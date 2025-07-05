@@ -34,7 +34,7 @@ RUN pip3 install --default-timeout=100 \
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         ros-noetic-image-geometry \
-        ros-noetic-rgbd-launch \  
+        ros-noetic-rgbd-launch \
         udev \
         ros-noetic-rosserial-arduino ros-noetic-rosserial-client \
         ros-noetic-rosserial-server ros-noetic-rosserial-python \
@@ -55,6 +55,32 @@ RUN apt-get update && \
         python3-tk \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# ---------- Install PulseAudio client libraries ----------
+# audio client libraries only – NOT the daemon
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libpulse0 alsa-utils libasound2 libasound2-plugins \
+        pulseaudio-utils && \
+    rm -rf /var/lib/apt/lists/*
+
+# keep Pulse from autospawning inside the container
+RUN printf '%s\n' \
+    "default-server = unix:/tmp/pulse/native" \
+    "autospawn      = no" \
+    "daemon-binary  = /bin/true" \
+    "enable-shm     = false" \
+    > /etc/pulse/client.conf
+
+# ----- Route every ALSA client to Pulse -----------------------------
+RUN printf '%s\n' \
+    'pcm.!default {' \
+    '  type pulse        # talk to the host Pulse / PipeWire server' \
+    '  fallback "sysdefault"' \
+    '}' \
+    'ctl.!default {' \
+    '  type pulse' \
+    '}' \
+    > /etc/asound.conf
+
 # ---------- Catkin workspace ----------
 ENV CATKIN_WS=/catkin_ws
 RUN mkdir -p $CATKIN_WS/src
@@ -72,8 +98,29 @@ RUN rosdep init && \
     rosdep install --from-paths src --ignore-src -r -y && \
     catkin build -DCMAKE_BUILD_TYPE=Release
 
+# ---------- User setup ----------
+# Create a user with the same UID/GID as the host user
+# This allows the container to access host files with the same permissions
+ARG UID=1000
+ARG GID=1000
+RUN groupadd -g ${GID} hostgroup && \
+    useradd  -u ${UID} -g hostgroup -m -s /bin/bash hostuser
+
+RUN chown -R hostuser:hostgroup /catkin_ws
+
+# ---------- give hostuser write access where it is needed ----------
+# 1. MediaPipe model directory
+RUN chown -R hostuser:hostgroup \
+    /usr/local/lib/python3.8/dist-packages/mediapipe
+
+# 2. copy AWS credentials to the unprivileged home
+RUN mkdir -p /home/hostuser/.aws && \
+    cp /root/.aws/credentials /home/hostuser/.aws/ && \
+    cp /root/.aws/config       /home/hostuser/.aws/ && \
+    chown -R hostuser:hostgroup /home/hostuser/.aws
+
 # ---------- Convenience sources ----------
 RUN echo "source /opt/ros/noetic/setup.bash"   >> /etc/bash.bashrc && \
     echo "source /catkin_ws/devel/setup.bash" >> /etc/bash.bashrc
 
-ENTRYPOINT ["/usr/local/bin/ros_docker_auto_startup_launcher.sh"]
+# ENTRYPOINT ["/usr/local/bin/ros_docker_auto_startup_launcher.sh"]

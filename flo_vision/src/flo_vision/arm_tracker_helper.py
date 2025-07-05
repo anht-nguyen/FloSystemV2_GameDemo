@@ -535,7 +535,7 @@ class ArmTracker:
                 return False
 
             # Check condition: elbow straight and shoulder angle within horizontal range
-            if elbow_angle > 160 and 40 < shoulder_angle < 160:
+            if elbow_angle > 125 and 40 < shoulder_angle < 150:
                 cv2.putText(image, label, label_pos, cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
                 return True
         except:

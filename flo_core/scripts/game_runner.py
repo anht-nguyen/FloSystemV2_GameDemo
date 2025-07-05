@@ -510,7 +510,7 @@ def build_sm(sequence: list[tuple[Action,Action,bool]], params, score_pub, promp
                             SimonCmdAction,
                             goal_cb=_goal_cb,
                             input_keys=["left_action", "right_action", "simon_says"],
-                            exec_timeout=rospy.Duration(15.0),
+                            exec_timeout=rospy.Duration(20.0),
                         ),
                     )
                     smach.Concurrence.add("POSE", WaitForPoseWithPause())

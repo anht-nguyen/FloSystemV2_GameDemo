@@ -401,19 +401,19 @@ int main(int argc, char ** argv)
     return -1;
   }
 
-  dxl_comm_result = packetHandler->write1ByteTxRx(
-    portHandler, DXL5_ID, ADDR_TORQUE_ENABLE, 1, &dxl_error);
-  if (dxl_comm_result != COMM_SUCCESS) {
-    ROS_ERROR("Failed to enable torque for Dynamixel ID: %d", DXL5_ID);
-    return -1;
-  }
+  // dxl_comm_result = packetHandler->write1ByteTxRx(
+  //   portHandler, DXL5_ID, ADDR_TORQUE_ENABLE, 1, &dxl_error);
+  // if (dxl_comm_result != COMM_SUCCESS) {
+  //   ROS_ERROR("Failed to enable torque for Dynamixel ID: %d", DXL5_ID);
+  //   return -1;
+  // }
 
-  dxl_comm_result = packetHandler->write1ByteTxRx(
-    portHandler, DXL5_ID, ADDR_OPER_MODE, 3, &dxl_error);
-  if (dxl_comm_result != COMM_SUCCESS) {
-    ROS_ERROR("Failed to set position control mode for Dynamixel ID: %d", DXL5_ID);
-    return -1;
-  }
+  // dxl_comm_result = packetHandler->write1ByteTxRx(
+  //   portHandler, DXL5_ID, ADDR_OPER_MODE, 3, &dxl_error);
+  // if (dxl_comm_result != COMM_SUCCESS) {
+  //   ROS_ERROR("Failed to set position control mode for Dynamixel ID: %d", DXL5_ID);
+  //   return -1;
+  // }
 
 
   ros::init(argc, argv, "read_write_arm_node");

@@ -636,6 +636,12 @@ class GameController:
         # Initialize Amazon Polly TTS client
         self.tts = PollyTTSStream(voice_id="Salli", region_name="us-east-1")
 
+        # Face expression publisher (latched so the GUI sees the last value)
+        self.emotion_pub = rospy.Publisher(
+            "/emotion", Emotion, queue_size=1, latch=True)
+        # ── Set neutral face immediately 
+        self.emotion_pub.publish(Emotion(state=Emotion.NEUTRAL))
+
         # Build state machine, passing in our fixed sequence
         self.sm = build_sm(self.sequence, self.params, self.score_pub, self.prompt_pub, self)
         # Introspection for viz
@@ -666,6 +672,7 @@ class GameController:
         """Runs in a background thread: dual-arm wave → rules → wait for GUI."""
         try:
             # ── 1)  WELCOME ────────────────────────────────────────────────
+
             rospy.loginfo("[INTRO] Speaking welcome speech")
             # Let the GUI show the same text via its /prompt callback
             # self.prompt_pub.publish(WELCOME_SPEECH.strip())

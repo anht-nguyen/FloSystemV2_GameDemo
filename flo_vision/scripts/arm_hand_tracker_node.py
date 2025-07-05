@@ -81,7 +81,7 @@ class ArmHandTrackerNode:
 
         # ─── Calibration handshake -----------------------------------------
         self.calib_mode = False                           # toggled by Core
-        self.calib_margin_px = rospy.get_param("~calib_margin_px", 10)
+        self.calib_margin_px = rospy.get_param("~calib_margin_px", 40)
 
         self._calib_pub = rospy.Publisher(
             "/simon_game/calib_status", CalibStatus, queue_size=10
@@ -101,8 +101,7 @@ class ArmHandTrackerNode:
         self.hands = self.mp_hands.Hands(min_detection_confidence=0.5,
                                          min_tracking_confidence=0.5, 
                                          max_num_hands=2)
-        rospy.Subscriber(image_topic, Image, self.image_callback, queue_size=1, buff_size=2 ** 24)
-        rospy.Subscriber("~pose_command",String, self.pose_command_callback, queue_size= 1)
+
         rospy.loginfo("arm_hand_tracker_node initialised – awaiting images…")
 
 

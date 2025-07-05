@@ -222,7 +222,8 @@ class ArmTracker:
             # Get the arm information
             left_shoulder, left_elbow, left_wrist, left_elbow_angle, left_shoulder_angle = self.get_arm_info(landmarks, 'right')
             right_shoulder, right_elbow, right_wrist, right_elbow_angle, right_shoulder_angle = self.get_arm_info(landmarks, 'left')
-            
+            left_detected = False
+            right_detected = False
             # Check if the arm is swinging
             if left_shoulder is not None or right_shoulder is not None:
                 # check if the elbow angle is greater than 150 degrees
@@ -564,12 +565,17 @@ class ArmTracker:
         mp_kp = self.mp_pose.PoseLandmark          # enum
         def pt(l):
             return (int(l.x * W), int(l.y * H), l.visibility)
+
         return {
-            "left_hip":  pt(landmarks[mp_kp.LEFT_HIP]),
-            "right_hip": pt(landmarks[mp_kp.RIGHT_HIP]),
-            "left_wrist": pt(landmarks[mp_kp.LEFT_WRIST]),
-            "right_wrist": pt(landmarks[mp_kp.RIGHT_WRIST]),
-            "nose": pt(landmarks[mp_kp.NOSE]),
+            "left_hip":       pt(landmarks[mp_kp.LEFT_HIP]),
+            "right_hip":      pt(landmarks[mp_kp.RIGHT_HIP]),
+            "left_shoulder":  pt(landmarks[mp_kp.LEFT_SHOULDER]),   # NEW
+            "right_shoulder": pt(landmarks[mp_kp.RIGHT_SHOULDER]),  # NEW
+            "left_elbow":     pt(landmarks[mp_kp.LEFT_ELBOW]),      # NEW
+            "right_elbow":    pt(landmarks[mp_kp.RIGHT_ELBOW]),     # NEW
+            "left_wrist":     pt(landmarks[mp_kp.LEFT_WRIST]),
+            "right_wrist":    pt(landmarks[mp_kp.RIGHT_WRIST]),
+            "nose":           pt(landmarks[mp_kp.NOSE]),
         }
 
     
@@ -577,6 +583,13 @@ class ArmTracker:
 # ─────────────────────────────────────────────────────────────
 #  New util: returns (ready, hint)
 # ─────────────────────────────────────────────────────────────
+def _angle(p1, p2, p3):
+    """Return ∠(p1-p2-p3) in degrees, using only (x,y)."""
+    a = np.array([p1[0]-p2[0], p1[1]-p2[1]])
+    b = np.array([p3[0]-p2[0], p3[1]-p2[1]])
+    cos = np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b) + 1e-6)
+    return np.degrees(np.arccos(np.clip(cos, -1.0, 1.0)))
+
 def calib_check(kps, img_h, img_w, margin=40):
     """
     kps : dict {name: (x,y,score)} – MUST include
@@ -586,10 +599,14 @@ def calib_check(kps, img_h, img_w, margin=40):
     Assumes wrists are already above nose if the user raised arms.
     """
     
-    wrists_y = [kps["left_wrist"][1], kps["right_wrist"][1]]
-    nose_y   = kps["nose"][1]
-    # 1) Must raise arm: hint "raise_arm" until wrist_y < nose_y
-    if min(wrists_y) <= nose_y:
+    ANGLE_TH  = 145           # tweak if too strict / lenient
+    try:
+        l_ang = _angle(kps["left_hip"],  kps["left_shoulder"],  kps["left_elbow"])
+        r_ang = _angle(kps["right_hip"], kps["right_shoulder"], kps["right_elbow"])
+    except KeyError:
+        return False, "raise_arm"        # missing joints → keep asking
+
+    if max(l_ang, r_ang) < ANGLE_TH:
         return False, "raise_arm"
 
     # 2) Now the arm is up – inform Core explicitly
@@ -597,6 +614,7 @@ def calib_check(kps, img_h, img_w, margin=40):
     ready, hint = False, "arm_up"
 
     # 3) Framing check (hips→wrists bounding box)
+    wrists_y = [kps["left_wrist"][1], kps["right_wrist"][1]]  
     hips_y   = [kps["left_hip"][1], kps["right_hip"][1]]
     top_y    = min(wrists_y)
     bottom_y = max(hips_y)

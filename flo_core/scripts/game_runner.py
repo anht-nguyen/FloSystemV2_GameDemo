@@ -139,7 +139,7 @@ class CalibrationStage:
 
         while not rospy.is_shutdown():
             # Stage 1 → Stage 2 as soon as we get any hint *besides* "raise_arm"
-            if stage == 1 and self._hint and self._hint == "arm_up":
+            if stage == 1 and self._hint == "arm_up":
                 # Move to framing stage
                 stage = 2
                 self._prompt_pub.publish(
@@ -150,7 +150,7 @@ class CalibrationStage:
                 )
                 last_hint = None
 
-            if stage == 2 and self._ready:
+            if stage == 2 and self._ready and self._hint == "arm_up":
                 # Success!
                 self._tts.speak("Perfect! I can see your whole upper body.")
                 self._cmd_pub.publish(False)
@@ -159,7 +159,7 @@ class CalibrationStage:
             # Only speak when hint changes
             if self._hint and self._hint != last_hint:
                 msg = {
-                    "raise_arm":    "Please raise your arm fully overhead and hold it there.",  # we only prompt once at entry
+                    "raise_arm":    "Please raise your arm fully overhead.",
                     "back":      "A little farther, please.",
                     "forward":   "Come a bit closer.",
                     "left":      "Move slightly to your left.",

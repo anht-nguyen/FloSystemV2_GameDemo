@@ -413,7 +413,7 @@ class ReturnHomeState(smach.State):
     def execute(self, ud):
         # Build and send the HOME pose goal
         home_goal = SimonCmdGoal(
-            gesture_name="HOME",   # name of your home pose in the action server
+            gesture_name="HOME_left|HOME_right",   # name of your home pose in the action server
             simon_says=True        # doesn't matter for HOME, but must be set
         )
         rospy.loginfo("[RETURN_HOME] sending robot to HOME pose")

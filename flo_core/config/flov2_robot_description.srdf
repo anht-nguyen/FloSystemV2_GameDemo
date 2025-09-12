@@ -51,7 +51,7 @@
 
     <group_state name="L_reach_side" group="L">
         <joint name="l1" value="0"/>
-        <joint name="l2" value="-1.469"/>
+        <joint name="l2" value="-1.70"/>
         <joint name="l3" value="0"/>
         <joint name="l4" value="1.592"/>
     </group_state>
@@ -151,7 +151,7 @@
         <joint name="r4" value="1.6131"/>
     </group_state>
     <group_state name="L_raise" group="L">
-        <joint name="l1" value="-3.074"/>
+        <joint name="l1" value="3.474"/>
         <joint name="l2" value="-0.4169"/>
         <joint name="l3" value="-0.033"/>
         <joint name="l4" value="1.6131"/>

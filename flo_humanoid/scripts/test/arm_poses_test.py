@@ -195,7 +195,7 @@ def apply_pose(packet: PacketHandler,
     target_deg: Dict[str, float] = {}
     for jn, val_rad in joints_rad.items():
         deg = math.degrees(val_rad)
-        if jn == 'r4':
+        if jn in ('l1', 'r4'):
             deg = -deg
         target_deg[jn] = deg
 

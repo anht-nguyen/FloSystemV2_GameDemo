@@ -1,26 +1,13 @@
 #!/usr/bin/env python3
 
 """
-独立的 Dynamixel SDK 测试脚本（不依赖 ROS）。
 
-功能：
-- 多端口扫描与连接（如 /dev/ttyUSB0,/dev/ttyUSB1）
-- 对每个给定 ID：Ping、读取诊断寄存器（硬件错误/电压/温度/扭矩/模式等）
-- 可选安全写入测试：在扭矩关闭时写 Operating Mode(11)、Profile Accel(108)/Vel(112)、P/D 增益(84/80)，并恢复原值
-- 详细打印通信结果与设备错误信息
-
-运行前：
-  pip install dynamixel-sdk
-
-示例：
   python3 flo_humanoid/scripts/dxl_self_test.py \
     --ports /dev/ttyUSB0 /dev/ttyUSB1 \
     --ids 111 112 211 212 \
     --baudrate 1000000 \
     --write-test
 
-仅读取（不写）：
-  python3 flo_humanoid/scripts/dxl_self_test.py --ports /dev/ttyUSB0 --ids 111 112
 """
 
 import argparse
@@ -31,7 +18,7 @@ from typing import Dict, List, Tuple
 try:
     from dynamixel_sdk import PortHandler, PacketHandler
 except Exception as exc:
-    print("[FATAL] 无法导入 dynamixel_sdk，请先执行: pip install dynamixel-sdk\n错误: {}".format(exc))
+    print("[FATAL] cannot import dynamixel_sdk, please execute: pip install dynamixel-sdk\nerror: {}".format(exc))
     sys.exit(1)
 
 
@@ -140,16 +127,16 @@ def _write4(packet: PacketHandler, port: PortHandler, dxl_id: int, addr: int, va
 
 
 def test_one_motor(port: PortHandler, packet: PacketHandler, dxl_id: int, args: argparse.Namespace) -> None:
-    print("\n===== 测试 ID {} =====".format(dxl_id))
+    print("\n===== Test ID {} =====".format(dxl_id))
 
     # Ping（get model number）
     try:
         model_number, dxl_comm_result, dxl_error = packet.ping(port, dxl_id)
     except TypeError:
-        # 兼容旧版 SDK 的返回风格
+        # compatible with old SDK return style
         dxl_comm_result, dxl_error, model_number = packet.ping(port, dxl_id)
     if dxl_comm_result != 0 or dxl_error != 0:
-        print("[ERR] Ping 失败: comm={}({}), err={}({})".format(
+        print("[ERR] Ping failed: comm={}({}), err={}({})".format(
             dxl_comm_result, packet.getTxRxResult(dxl_comm_result),
             dxl_error, packet.getRxPacketError(dxl_error)))
         return
@@ -168,14 +155,14 @@ def test_one_motor(port: PortHandler, packet: PacketHandler, dxl_id: int, args: 
     _, _, orig_p = _read2(packet, port, dxl_id, ADDR_POSITION_P_GAIN)
     _, _, orig_d = _read2(packet, port, dxl_id, ADDR_POSITION_D_GAIN)
 
-    # turn off torque
+    # turn off torque (torque off)
     dxl_comm_result, dxl_error = _write1(packet, port, dxl_id, ADDR_TORQUE_ENABLE, 0)
     if not comm_ok(packet, dxl_comm_result, dxl_error, "torque off"):
         return
     # confirm torque is off
     _, _, torque_val = _read1(packet, port, dxl_id, ADDR_TORQUE_ENABLE)
     if torque_val != 0:
-        print("[ERR] Torque 未关闭，终止写测试。")
+        print("[ERR] Torque is not off, abort write test.")
         return
 
     # write position mode(11) = 3 (only when needed or forced test)
@@ -183,7 +170,7 @@ def test_one_motor(port: PortHandler, packet: PacketHandler, dxl_id: int, args: 
         dxl_comm_result, dxl_error = _write1(packet, port, dxl_id, ADDR_OPER_MODE, 3)
         if not comm_ok(packet, dxl_comm_result, dxl_error, "set opmode=3"):
             return
-        time.sleep(args.eeprom_wait_ms / 1000.0)  # EEPROM 备份等待
+        time.sleep(args.eeprom_wait_ms / 1000.0)  # EEPROM backup wait
 
     # write Profile Accel / Vel (RAM)
     test_acc = args.profile_accel
@@ -237,14 +224,14 @@ def open_ports(ports: List[str], baudrate: int) -> Dict[str, PortHandler]:
     for dev in ports:
         ph = PortHandler(dev)
         if not ph.openPort():
-            print(f"[ERR] 打开端口失败: {dev}")
+            print(f"[ERR] open port failed: {dev}")
             continue
         if not ph.setBaudRate(baudrate):
-            print(f"[ERR] 端口设置波特率失败: {dev} @ {baudrate}")
+            print(f"[ERR] set baudrate failed: {dev} @ {baudrate}")
             ph.closePort()
             continue
         handlers[dev] = ph
-        print(f"[OK ] 打开端口: {dev} @ {baudrate}")
+        print(f"[OK ] open port: {dev} @ {baudrate}")
     return handlers
 
 
@@ -259,10 +246,10 @@ def main():
     parser.add_argument("--restore-mode", action="store_true", help="After test, restore OPER_MODE to original value")
     parser.add_argument("--leave-torque-off", action="store_true", help="Keep torque off after test")
     parser.add_argument("--torque-cycle", action="store_true", help="Do one torque on/off cycle test")
-    parser.add_argument("--profile-accel", type=int, default=50, help="测试用 Profile Accel，默认 50")
-    parser.add_argument("--profile-vel", type=int, default=50, help="测试用 Profile Vel，默认 50")
+    parser.add_argument("--profile-accel", type=int, default=50, help="Test Profile Accel, default 50")
+    parser.add_argument("--profile-vel", type=int, default=50, help="Test Profile Vel, default 50")
     parser.add_argument("--eeprom-wait-ms", type=int, default=50, help="Wait milliseconds after writing EEPROM(OPER_MODE), default 50ms")
-    parser.add_argument("--port-map", action="store_true", help="根据 ID 推测端口(简易规则：<200 走第一个端口，>=200 走第二个端口)")
+    parser.add_argument("--port-map", action="store_true", help="Guess port by ID (simple rule: <200 go first port, >=200 go second port)")
 
     args = parser.parse_args()
 

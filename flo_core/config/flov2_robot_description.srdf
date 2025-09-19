@@ -94,7 +94,7 @@
     </group_state>
     <group_state name="R_raise" group="R">
         <joint name="r1" value="3.074"/>
-        <joint name="r2" value="0.8169"/>
+        <joint name="r2" value="0.5169"/>
         <joint name="r3" value="0.033091"/>
         <joint name="r4" value="1.6131"/>
     </group_state>

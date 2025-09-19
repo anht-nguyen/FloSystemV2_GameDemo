@@ -99,11 +99,19 @@ python3 "${PY_SCRIPT}" --ports "${PORT_ARR[@]}" --pose "${HOME_POSE}" --init "${
 
 # Loop through actions
 for act in "${ACTIONS[@]}"; do
-  echo "\n[STEP] Action: ${act} (repeat=${REPEAT})"
-  python3 "${PY_SCRIPT}" --ports "${PORT_ARR[@]}" --arm "${SIDE}" --pose "${act}" --repeat "${REPEAT}" "${COMMON_ARGS[@]}"
-
-  echo "[STEP] Returning to Home"
-  python3 "${PY_SCRIPT}" --ports "${PORT_ARR[@]}" --pose "${HOME_POSE}" "${COMMON_ARGS[@]}"
+  if [[ "${SIDE}" == "dual" ]]; then
+    echo "\n[STEP] Dual Action: ${act} (repeat=${REPEAT}) — LEFT arm"
+    python3 "${PY_SCRIPT}" --ports "${PORT_ARR[@]}" --arm left  --pose "${act}" --repeat "${REPEAT}" "${COMMON_ARGS[@]}"
+    echo "[STEP] Dual Action: ${act} — RIGHT arm"
+    python3 "${PY_SCRIPT}" --ports "${PORT_ARR[@]}" --arm right --pose "${act}" --repeat "${REPEAT}" "${COMMON_ARGS[@]}"
+    echo "[STEP] Returning to Dual Home"
+    python3 "${PY_SCRIPT}" --ports "${PORT_ARR[@]}" --pose "D_home" "${COMMON_ARGS[@]}"
+  else
+    echo "\n[STEP] Action: ${act} (repeat=${REPEAT})"
+    python3 "${PY_SCRIPT}" --ports "${PORT_ARR[@]}" --arm "${SIDE}" --pose "${act}" --repeat "${REPEAT}" "${COMMON_ARGS[@]}"
+    echo "[STEP] Returning to Home"
+    python3 "${PY_SCRIPT}" --ports "${PORT_ARR[@]}" --pose "${HOME_POSE}" "${COMMON_ARGS[@]}"
+  fi
 
   if [[ "${NO_WAIT}" -eq 0 ]]; then
     read -r -p "[PAUSE] Press Enter to continue to next action..." _

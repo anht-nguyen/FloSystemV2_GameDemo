@@ -1,105 +1,60 @@
-## flo_humanoid
+# flo_core
 
-This package focuses on motor control for the Flo V2 robot, particularly for sending motor positions to the robot.
+ROS package for the Flo V2 Simon Says game, MoveIt-based dual-arm motion
+control, and a desktop GUI.
 
----
+## Key functionality
 
-### Key Functionality
+- `scripts/game_runner.py`: SMACH-based Simon Says executive. Handles intro
+  flow, calibration handshake, turn sequencing, scoring, and pause/resume.
+  Publishes `/simon_game/prompt`, `/simon_game/score`, `/simon_game/turn_id`,
+  and `/emotion`. Subscribes to `/simon_game/control`,
+  `/simon_game/calib_status`, and `/arm_hand_tracker/pose_score`. Sends
+  `/simon_cmd` action goals.
+- `scripts/moveit_controller.py`: Provides the `/simon_cmd` action server.
+  Parses gesture strings like `<ACTION>_left|<ACTION>_right` and executes
+  dual-arm motions via `ActionSequenceController`. Also listens for legacy
+  `/action_command` messages.
+- `scripts/simon_says_gui.py`: Qt GUI that publishes `/simon_game/control`
+  and displays prompt, score, turn, timer, and status.
 
-- The main file used is `readWriteArms.cpp`.  
-  It can simultaneously send data for **10 motors** to the robot based on motor IDs.
+## Core modules
 
-- **Communication Flow**:  
-  - Subscribes to the topic `/set_arms_joint_positions`, which is published by the control program `dualPosition.py` in the `flo_core` package.  
-  - Uses the `GetArmsJointPositions.srv` service to define the data format sent to the motors.
+- `src/flo_core/action_sequence_controller.py`: Action enum and MoveIt
+  action sequences, including dual-arm execution.
+- `src/flo_core/prompt_utils.py`: Builds natural language prompts for
+  left/right actions with optional "Simon says" prefix.
+- `src/flo_core/polly_tts_streaming.py`: Streaming text-to-speech via
+  Amazon Polly and PyAudio.
+- `src/flo_core/polly_tts.py`: File-based Polly TTS helper.
 
----
+## Configuration
 
-### Nodes
+- `config/simonsays_game_params.yaml`: Allowed actions, timeouts, thresholds,
+  and round count for the game.
 
-The `flo_humanoid` package provides several ROS nodes for motor control and position management:
+## Launch
 
-| **Node Name**                | **Executable**           | **File**                         | **Description**                          |
-|------------------------------|--------------------------|----------------------------------|------------------------------------------|
-| `read_write_joint_node`      | `read_write_joint_node`  | `src/readWriteJoint.cpp`         | Reads and writes joint motor positions.  |
-| `read_write_arm_node`        | `read_write_arm_node`    | `src/readWriteArm.cpp`           | Reads and writes single arm motor data.  |
-| `read_write_arms_node`       | `read_write_arms_node`   | `src/readWriteArms.cpp`          | Controls both arms simultaneously.       |
-| `publish_motor_positions`    | `publish_motor_positions`| `src/publish_motor_positions.cpp`| Publishes motor positions for testing.   |
-| `subscribe_motor_positions`  | `subscribe_motor_positions`| `src/subscribe_motor_positions.cpp` | Subscribes to motor position data.       |
+- `launch/simonsays_launcher_prod.launch`: Loads game parameters and starts
+  `moveit_controller`, `game_runner`, and the GUI.
+- Other launch files under `launch/` support MoveIt, Gazebo, and RViz setups
+  used by the broader Flo V2 stack.
 
----
+## Package files
 
-### File Structure
+- `CMakeLists.txt`, `package.xml`, `setup.py`: Build and package metadata.
 
-```plaintext
-flo_humanoid/
-│
-├── config/                # Configuration files
-├── msg/                   # Custom message definitions
-├── srv/                   # Service definitions (e.g., GetArmsJointPositions.srv)
-├── src/                   # Source code files
-│   ├── publish_motor_positions.cpp       # Publishes motor positions
-│   ├── readWriteArm.cpp                  # Reads and writes a single arm's motor data
-│   ├── readWriteArms.cpp                 # Reads and writes both arms' motor data
-│   ├── readWriteEndEff.cpp               # Controls the end-effector motor data
-│   ├── readWriteJoint.cpp                # Reads and writes joint motor positions
-│   └── subscribe_motor_positions.cpp     # Subscribes to motor positions
-│
-├── basicMotorTest.bash     # Script for motor testing
-├── CMakeLists.txt          # Build configuration
-├── Dockerfile              # Docker container configuration
-├── package.xml             # ROS package metadata
-└── readme.md               # Package documentation
+## Quick start
+
+```bash
+roslaunch flo_core simonsays_launcher_prod.launch
 ```
 
----
+## Dependencies
 
-### Usage Instructions
-
-1. **Build the Package**:  
-   Ensure the package is in your workspace `src` folder, then build it:
-   ```bash
-   cd ~/your_workspace
-   catkin_make
-   ```
-
-2. **Run Nodes**: Use `rosrun` to execute the nodes as follows:
-
-   - **Read and Write Joint Motor Positions**:
-     ```bash
-     rosrun flo_humanoid read_write_joint_node
-     ```
-   - **Read and Write Single Arm Motor Data**:
-     ```bash
-     rosrun flo_humanoid read_write_arm_node
-     ```
-   - **Control Both Arms Simultaneously**:
-     ```bash
-     rosrun flo_humanoid read_write_arms_node
-     ```
-   - **Publish Motor Positions for Testing**:
-     ```bash
-     rosrun flo_humanoid publish_motor_positions
-     ```
-   - **Subscribe to Motor Position Data**:
-     ```bash
-     rosrun flo_humanoid subscribe_motor_positions
-     ```
-
-3. **Communication**:  
-   - The `read_write_arms_node` subscribes to the `/set_arms_joint_positions` topic, which is published by `dualPosition.py` from the `flo_core` package.  
-   - Data format for motor positions is defined in the `GetArmsJointPositions.srv` service.
-
----
-
-### Notes
-
-- Ensure **ROS Noetic** is installed and configured.  
-- The `readWriteArms.cpp` file is critical for controlling multiple motors simultaneously.  
-- Use the provided nodes to test and control the robot's motors efficiently.
-
----
-
-## License
-
-This project is licensed under the [MIT License](LICENSE).
+- ROS (e.g., Noetic), MoveIt, and `flo_core_defs` messages/actions.
+- `PyQt5` for the GUI.
+- `boto3` and `pyaudio` for Polly TTS.
+- A pose-scoring publisher (e.g., `flo_vision`) on
+  `/arm_hand_tracker/pose_score` and calibration status on
+  `/simon_game/calib_status`.

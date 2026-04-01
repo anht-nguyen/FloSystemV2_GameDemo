@@ -18,6 +18,7 @@ __pycache__/
 .idea/
 *.swp
 *.swo
+.codex
 
 # OS generated files
 .DS_Store

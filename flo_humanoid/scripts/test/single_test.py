@@ -4,9 +4,9 @@ port='/dev/ttyUSB0'; baud=1000000; dxl_id=112
 ph=PortHandler(port); ph.openPort(); ph.setBaudRate(baud)
 pk=PacketHandler(2.0)
 
-# 先关扭矩，避免过流继续发生
+# Disable torque first to avoid continued overcurrent
 pk.write1ByteTxRx(ph, dxl_id, 64, 0)
-# 重启并等待0.7s
+# Reboot and wait 0.7s
 pk.reboot(ph, dxl_id); sleep(0.7)
 
 def r1(a): return pk.read1ByteTxRx(ph, dxl_id, a)[0]

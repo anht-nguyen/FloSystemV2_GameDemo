@@ -56,7 +56,7 @@ import yaml
 try:
     from dynamixel_sdk import PortHandler, PacketHandler
 except Exception as exc:
-    raise SystemExit("请先安装 dynamixel-sdk: pip3 install dynamixel-sdk\n错误: {}".format(exc))
+    raise SystemExit("Please install dynamixel-sdk first: pip3 install dynamixel-sdk\nError: {}".format(exc))
 
 
 # Control Table Addresses (X-series / Protocol 2.0)
@@ -82,14 +82,14 @@ def open_ports(devs: List[str], baudrate: int) -> Dict[str, PortHandler]:
     for dev in devs:
         ph = PortHandler(dev)
         if not ph.openPort():
-            print(f"[ERR] 打开端口失败: {dev}")
+            print(f"[ERR] Failed to open port: {dev}")
             continue
         if not ph.setBaudRate(baudrate):
-            print(f"[ERR] 设置波特率失败: {dev} @ {baudrate}")
+            print(f"[ERR] Failed to set baud rate: {dev} @ {baudrate}")
             ph.closePort()
             continue
         handlers[dev] = ph
-        print(f"[OK ] 打开端口: {dev} @ {baudrate}")
+        print(f"[OK ] Opened port: {dev} @ {baudrate}")
     return handlers
 
 
@@ -144,7 +144,7 @@ def ensure_operational(packet: PacketHandler, ph: PortHandler, dxl_ids: List[int
         if profile_vel is not None:
             cr, er = packet.write4ByteTxRx(ph, dxl_id, ADDR_PROFILE_VELOCITY, int(profile_vel))
             comm_ok(packet, cr, er, f"{dxl_id}: profile vel")
-        # PID gains（2 字节）
+        # PID gains (2 bytes)
         if p_gain is not None:
             cr, er = packet.write2ByteTxRx(ph, dxl_id, ADDR_POSITION_P_GAIN, int(p_gain))
             comm_ok(packet, cr, er, f"{dxl_id}: P gain")
@@ -214,10 +214,10 @@ def apply_pose(packet: PacketHandler,
         ticks = degrees_to_dxl_ticks(deg)
         ph = left_port if jn.startswith('l') else right_port
         if ph is None:
-            raise RuntimeError(f"未提供 {'左' if jn.startswith('l') else '右'}臂串口，但姿态需要 {jn}")
+            raise RuntimeError(f"No {'left' if jn.startswith('l') else 'right'} arm serial port provided, but pose requires {jn}")
         cmds.append((ph, dxl_id, ticks))
 
-    # 发送
+    # Send commands
     for ph, dxl_id, ticks in cmds:
         if dry_run:
             print(f"[DRY] ID {dxl_id} → {ticks}")
@@ -289,7 +289,7 @@ def main():
     right_ids = [joint_id_map[jn] for jn in joint_names if jn.startswith('r') and jn in joint_id_map]
 
     if args.init and dxl_ids:
-        # Left/right ports separately initialize their IDs (simply by joint name归属)
+        # Left/right ports initialize their own IDs separately (based on joint-name ownership)
         if left_ids:
             ensure_operational(packet, left_port, left_ids,
                                set_mode_3=True,
@@ -332,5 +332,4 @@ def main():
 
 if __name__ == '__main__':
     main()
-
 

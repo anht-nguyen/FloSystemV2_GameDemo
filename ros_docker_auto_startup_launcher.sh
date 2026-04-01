@@ -2,7 +2,7 @@
 #!/usr/bin/env bash
 set -e
 
-# Auto startup script for ROS on ubuntu 20 machine (non-docker) in a tmux session
+# Auto startup script for ROS on ubuntu 20 machine (in docker) in a tmux session
 
 # 0) load ROS & workspace overlays
 

@@ -22,7 +22,7 @@ except Exception as exc:
     sys.exit(1)
 
 
-# 控制表地址（X 系列 / 协议 2.0）
+# Control table addresses (X-series / Protocol 2.0)
 ADDR_MODEL_NUMBER = 0              # 2 bytes
 ADDR_DRIVE_MODE = 10               # 1 byte
 ADDR_OPER_MODE = 11                # 1 byte
@@ -92,7 +92,7 @@ def read_diag(port: PortHandler, packet: PacketHandler, dxl_id: int) -> Dict[str
 
 def _read1(packet: PacketHandler, port: PortHandler, dxl_id: int, addr: int) -> Tuple[int, int, int]:
     val, dxl_comm_result, dxl_error = packet.read1ByteTxRx(port, dxl_id, addr)
-    if isinstance(val, tuple):  # 兼容某些版本返回顺序
+    if isinstance(val, tuple):  # Compatible with the return order of some versions
         val, dxl_comm_result, dxl_error = val
     return dxl_comm_result, dxl_error, int(val)
 
@@ -282,5 +282,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 

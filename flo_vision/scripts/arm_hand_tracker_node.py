@@ -206,7 +206,7 @@ class ArmHandTrackerNode:
         #     return
         
         try:
-            # 直接统一用 bgr8，一次到位
+            # Convert directly to bgr8 in one step
             frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
         except CvBridgeError as e:
             rospy.logwarn(f"CvBridge conversion failed: {e}")

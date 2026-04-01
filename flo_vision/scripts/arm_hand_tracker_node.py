@@ -45,9 +45,7 @@ from flo_vision.arm_tracker_helper import ArmTracker, calib_check
 mp_drawing = mp.solutions.drawing_utils
 mp_drawing_styles = mp.solutions.drawing_styles
 
-# Force HighGUI to create its own GUI thread
-cv2.startWindowThread()
-cv2.namedWindow("FLO Vision – Arms & Hands", cv2.WINDOW_NORMAL)
+PREVIEW_WINDOW_NAME = "FLO Vision – Arms & Hands"
 
 
 class ArmHandTrackerNode:
@@ -55,6 +53,8 @@ class ArmHandTrackerNode:
         # ---------- ROS housekeeping ----------
         self.bridge = CvBridge()
         self.preview = rospy.get_param("~preview", True)
+        self.preview_window = rospy.get_param("~preview_window", self.preview)
+        self.publish_preview = rospy.get_param("~publish_preview", True)
         # self.pose_to_detect = rospy.get_param("~pose", "all")
         pose_param = rospy.get_param("~pose", "wave")
         if isinstance(pose_param,str):
@@ -74,10 +74,7 @@ class ArmHandTrackerNode:
         self.pub_right_shldr = rospy.Publisher("~right_shoulder_angle", Float32, queue_size=10)
         self.pub_gesture = rospy.Publisher("~gesture", String, queue_size=10)
         self.pub_posescore = rospy.Publisher("~pose_score", PoseScore, queue_size=10)
-        # Subscriber
-
-        rospy.Subscriber(image_topic, Image, self.image_callback, queue_size=1, buff_size=2 ** 24)
-        rospy.Subscriber("~pose_command",String, self.pose_command_callback, queue_size= 1)
+        self.pub_preview_image = rospy.Publisher("~preview_image", Image, queue_size=1)
 
         # ─── Calibration handshake -----------------------------------------
         self.calib_mode = False                           # toggled by Core
@@ -103,6 +100,14 @@ class ArmHandTrackerNode:
                                          max_num_hands=2)
 
         rospy.loginfo("arm_hand_tracker_node initialised – awaiting images…")
+
+        if self.preview_window:
+            cv2.startWindowThread()
+            cv2.namedWindow(PREVIEW_WINDOW_NAME, cv2.WINDOW_NORMAL)
+
+        # Subscribers come last so callbacks cannot fire before MediaPipe is ready.
+        rospy.Subscriber(image_topic, Image, self.image_callback, queue_size=1, buff_size=2 ** 24)
+        rospy.Subscriber("~pose_command", String, self.pose_command_callback, queue_size=1)
 
 
         self.skip_frames = 1
@@ -250,7 +255,7 @@ class ArmHandTrackerNode:
             self._calib_pub.publish(CalibStatus(ready=ready, hint=hint))
 
             # always update preview_frame with the overlay
-            if self.preview:
+            if self.preview or self.publish_preview or self.preview_window:
                 txt   = "OK" if ready else hint.upper()
                 color = (0,255,0) if ready else (0,0,255)
                 cv2.putText(image_bgr, f"CALIB: {txt}", (20,40),
@@ -376,7 +381,7 @@ class ArmHandTrackerNode:
             
             self.pub_posescore.publish(pose_score)
             # Optionally overlay angle values on‑screen
-            if self.preview and l_sh is not None and r_sh is not None:
+            if (self.preview or self.publish_preview or self.preview_window) and l_sh is not None and r_sh is not None:
                 cv2.putText(image_bgr, f"{int(l_el_ang)}", (int(l_el[0] * w), int(l_el[1] * h)),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
                 cv2.putText(image_bgr, f"{int(r_el_ang)}", (int(r_el[0] * w), int(r_el[1] * h)),
@@ -385,8 +390,15 @@ class ArmHandTrackerNode:
         # ------------------------------------------------------------------
         #                  OPTIONAL GUI WINDOW
         # ------------------------------------------------------------------
-        if self.preview:
-            self.preview_frame = image_bgr  # stash latest frame for main‑thread GUI
+        if self.preview or self.publish_preview or self.preview_window:
+            self.preview_frame = image_bgr  # stash latest frame for preview consumers
+            if self.publish_preview:
+                try:
+                    self.pub_preview_image.publish(
+                        self.bridge.cv2_to_imgmsg(image_bgr, encoding="bgr8")
+                    )
+                except CvBridgeError as e:
+                    rospy.logwarn(f"Failed to publish preview image: {e}")
 
 
 # ======================================================================
@@ -400,11 +412,11 @@ def main():
 
     try:
         while not rospy.is_shutdown():
-            if tracker.preview and tracker.preview_frame is not None:
-                cv2.imshow("FLO Vision – Arms & Hands", tracker.preview_frame)
+            if tracker.preview_window and tracker.preview_frame is not None:
+                cv2.imshow(PREVIEW_WINDOW_NAME, tracker.preview_frame)
                 if cv2.waitKey(1) & 0xFF == 27:  # ESC quits preview
                     rospy.loginfo("ESC pressed, quitting preview.")
-                    tracker.preview = False
+                    tracker.preview_window = False
                     cv2.destroyAllWindows()
             rate.sleep()
     except rospy.ROSInterruptException:

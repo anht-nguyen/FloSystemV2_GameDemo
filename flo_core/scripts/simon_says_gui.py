@@ -1,26 +1,6 @@
 #!/usr/bin/env python3
 """
-ROS GUI for Dual‑Arm Simon Says – *Qt State Machine Edition*
-===========================================================
-Re‑implements the control panel using **QStateMachine** so that GUI behaviour
-faithfully mirrors the state / event flow defined below. All GUI element
-properties (enabled / disabled states, timers, counters) are updated through
-state‑entry callbacks rather than ad‑hoc logic sprinkled across the code.
-
-| State        | Event (button)   | Action published to /simon_game/control | Next GUI State |
-|--------------|------------------|-----------------------------------------|----------------|
-| Idle         | Start            | start ‒ reset intro flags, show rules   | Intro          |
-| Intro        | Prompt received  | ‒ display rules; enable Continue/Stop   | Intro_Wait     |
-| Intro_Wait   | Continue         | continue ‒ begin countdown & game loop  | InGame         |
-| Intro_Wait   | Stop             | stop ‒ abort intro                      | GameOver       |
-| InGame       | Prompt received  | ‒ update action prompt / turn / timer   | InGame         |
-| InGame       | Pause            | pause ‒ freeze game & timer             | Paused         |
-| InGame       | Stop             | stop ‒ terminate game                   | GameOver       |
-| Paused       | Continue         | continue ‒ resume game & timer          | InGame         |
-| Paused       | Stop             | stop ‒ abandon game                     | GameOver       |
-| GameOver     | Restart          | restart ‒ full reset; re-enable Start   | Idle           |
-| Any state    | Quit             | quit ‒ shutdown GUI & ROS node          | Terminated     |
-
+ROS GUI for Dual‑Arm Simon Says – merged camera + controller window.
 """
 from __future__ import annotations
 
@@ -28,16 +8,20 @@ import sys
 from enum import Enum
 
 import rospy
-from PyQt5.QtCore import Qt, QTimer, QState, QStateMachine, pyqtSignal
+from cv_bridge import CvBridge, CvBridgeError
+from PyQt5.QtCore import Qt, QState, QStateMachine, QTimer, pyqtSignal
+from PyQt5.QtGui import QColor, QImage, QPainter, QPixmap
 from PyQt5.QtWidgets import (
     QApplication,
     QFrame,
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
+from sensor_msgs.msg import Image
 from std_msgs.msg import Int32, String
 
 
@@ -52,107 +36,224 @@ class GameState(str, Enum):
     TERMINATED = "Terminated"
 
 
-class SimonGUI(QWidget):
-    """Main GUI widget driven by a Qt   StateMachine."""
+class CameraView(QWidget):
+    """Paint camera frames into a stable viewport instead of QLabel pixmap layout."""
 
-    # ──────────────── *FSM trigger signals* ────────────────
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._pixmap = None
+        self._placeholder = "Waiting for tracker preview..."
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.setMinimumSize(320, 240)
+
+    def set_frame(self, pixmap: QPixmap):
+        self._pixmap = pixmap
+        self.update()
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
+
+        content_rect = self.rect().adjusted(24, 24, -24, -24)
+        painter.fillRect(self.rect(), QColor("#060b10"))
+
+        if self._pixmap is None or self._pixmap.isNull():
+            painter.setPen(QColor("#89a1ba"))
+            painter.drawText(content_rect, Qt.AlignCenter | Qt.TextWordWrap, self._placeholder)
+            return
+
+        scaled = self._pixmap.scaled(
+            content_rect.size(),
+            Qt.KeepAspectRatio,
+            Qt.SmoothTransformation,
+        )
+        x_pos = content_rect.x() + (content_rect.width() - scaled.width()) // 2
+        y_pos = content_rect.y() + (content_rect.height() - scaled.height()) // 2
+        painter.drawPixmap(x_pos, y_pos, scaled)
+
+
+class SimonGUI(QWidget):
+    """Main GUI widget driven by a Qt StateMachine."""
+
     startClicked = pyqtSignal()
     continueClicked = pyqtSignal()
     pauseClicked = pyqtSignal()
     stopClicked = pyqtSignal()
     restartClicked = pyqtSignal()
     quitClicked = pyqtSignal()
-    rulesReceived = pyqtSignal()  # emitted when rules prompt arrives
-
-    # ───────────────────────── GUI lifecycle ──────────────────────────
+    rulesReceived = pyqtSignal()
+    cameraFrameReady = pyqtSignal(QImage)
 
     def __init__(self):
         super().__init__()
 
-        # ── ROS init ────────────────────────────────────────────────
         rospy.init_node("simon_gui", anonymous=True)
         self.cmd_pub = rospy.Publisher("/simon_game/control", String, queue_size=10)
-        rospy.Subscriber("/simon_game/score", Int32, self._cb_score)
-        rospy.Subscriber("/simon_game/prompt", String, self._cb_prompt)
-        rospy.Subscriber("/simon_game/turn_id", Int32, self._cb_turn)
-        rospy.Subscriber("/simon_game/status", String, self._cb_status)
-
-        # ── params ──────────────────────────────────────────────────
-        # self.turn_timeout = int(rospy.get_param("~turn_timeout"))
         self.turn_timeout = int(rospy.get_param("/game_runner/turn_timeout"))
-        # self.total_rounds = int(rospy.get_param("~total_rounds"))
         self.total_rounds = int(rospy.get_param("/game_runner/total_rounds"))
 
-        # ── internal counters ───────────────────────────────────────
         self.current_turn = 0
         self.current_score = 0
         self.remaining_time = self.turn_timeout
         self.current_state: GameState = GameState.IDLE
-        self.ready_for_start = False        # ← only true after “Waiting…” seen
-        self.calib_ready = False          # set True after “Perfect!” prompt
+        self.ready_for_start = False
+        self.calib_ready = False
+        self.bridge = CvBridge()
+        self.current_camera_pixmap = None
 
-        # ── GUI widgets ─────────────────────────────────────────────
         self._build_ui()
+        self.cameraFrameReady.connect(self._update_camera_frame)
 
-        # ── timer for countdown ─────────────────────────────────────
         self.ticker = QTimer(self)
         self.ticker.timeout.connect(self._tick_timer)
 
-        # ── finite‑state machine ────────────────────────────────────
         self._build_fsm()
-
-        # ── ensure buttons start DISABLED before any ROS status ─────
-        #   (Qt queues the state-entry signal, so without this there’s
-        #    a brief moment where “Start” appears enabled.)
         self._update_buttons()
 
-    # ─────────────────────────── UI set‑up ───────────────────────────
+        # Subscribe after UI/state setup so early messages cannot hit half-built objects.
+        rospy.Subscriber("/simon_game/score", Int32, self._cb_score)
+        rospy.Subscriber("/simon_game/prompt", String, self._cb_prompt)
+        rospy.Subscriber("/simon_game/turn_id", Int32, self._cb_turn)
+        rospy.Subscriber("/simon_game/status", String, self._cb_status)
+        rospy.Subscriber(
+            rospy.get_param("~preview_topic", "/arm_hand_tracker/preview_image"),
+            Image,
+            self._cb_preview_image,
+            queue_size=1,
+            buff_size=2 ** 24,
+        )
 
     def _build_ui(self):
-        self.setWindowTitle("Dual‑Arm Simon Says – Control Panel")
-        self.setFixedSize(380, 420)
+        self.setWindowTitle("Dual-Arm Simon Says")
+        self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint)
+        self.setStyleSheet(
+            """
+            QWidget {
+                background: #0f1720;
+                color: #f4f7fb;
+                font-family: "DejaVu Sans";
+            }
+            QFrame#cameraPanel {
+                background: #060b10;
+                border: 1px solid #1d2937;
+                border-radius: 18px;
+            }
+            QFrame#controlPanel {
+                background: #16212d;
+                border: 1px solid #243243;
+                border-radius: 18px;
+            }
+            QLabel#cameraTitle {
+                font-size: 22px;
+                font-weight: 700;
+                color: #d7e4f5;
+            }
+            QLabel#metric {
+                background: #1a2735;
+                border: 1px solid #2e4359;
+                border-radius: 12px;
+                padding: 10px 12px;
+                font-size: 17px;
+                font-weight: 600;
+            }
+            QLabel#promptBox {
+                background: #1a2735;
+                border: 1px solid #2e4359;
+                border-radius: 12px;
+                padding: 14px;
+                font-size: 18px;
+            }
+            QPushButton {
+                background: #2b8a78;
+                border: none;
+                border-radius: 12px;
+                color: white;
+                font-size: 17px;
+                font-weight: 700;
+                min-height: 52px;
+                padding: 10px 14px;
+            }
+            QPushButton:disabled {
+                background: #4a5d70;
+                color: #aab7c3;
+            }
+            QPushButton#danger {
+                background: #b54141;
+            }
+            QPushButton#secondary {
+                background: #405f8d;
+            }
+            """
+        )
 
-        layout = QVBoxLayout()
-        layout.setAlignment(Qt.AlignTop)
-        self.setLayout(layout)
+        root = QHBoxLayout()
+        root.setContentsMargins(18, 18, 18, 18)
+        root.setSpacing(18)
+        self.setLayout(root)
 
-        # prompt / rules label -------------------------------------------------
+        camera_panel = QFrame()
+        camera_panel.setObjectName("cameraPanel")
+        camera_layout = QVBoxLayout(camera_panel)
+        camera_layout.setContentsMargins(18, 18, 18, 18)
+        camera_layout.setSpacing(12)
+
+        camera_title = QLabel("Camera View")
+        camera_title.setObjectName("cameraTitle")
+        camera_layout.addWidget(camera_title)
+
+        self.camera_view = CameraView()
+        self.camera_view.setStyleSheet(
+            "background: #060b10; border: 1px dashed #395169; border-radius: 14px;"
+        )
+        camera_layout.addWidget(self.camera_view, 1)
+
+        root.addWidget(camera_panel, 3)
+
+        control_panel = QFrame()
+        control_panel.setObjectName("controlPanel")
+        control_layout = QVBoxLayout(control_panel)
+        control_layout.setContentsMargins(18, 18, 18, 18)
+        control_layout.setSpacing(14)
+        control_layout.setAlignment(Qt.AlignTop)
+
+        title = QLabel("Game Controller")
+        title.setStyleSheet("font-size: 24px; font-weight: 700;")
+        control_layout.addWidget(title)
+
         self.lbl_prompt = QLabel("Prompt: –")
+        self.lbl_prompt.setObjectName("promptBox")
         self.lbl_prompt.setWordWrap(True)
-        self.lbl_prompt.setFrameStyle(QFrame.Panel | QFrame.Sunken)
-        layout.addWidget(self.lbl_prompt)
+        control_layout.addWidget(self.lbl_prompt)
 
-        # turn + score row -----------------------------------------------------
         self.lbl_turn = QLabel(f"Turn: 0/{self.total_rounds}")
         self.lbl_score = QLabel("Score: 0")
-        for l in (self.lbl_turn, self.lbl_score):
-            l.setAlignment(Qt.AlignCenter)
-            l.setFrameStyle(QFrame.Panel | QFrame.Sunken)
+        for widget in (self.lbl_turn, self.lbl_score):
+            widget.setAlignment(Qt.AlignCenter)
+            widget.setObjectName("metric")
         row = QHBoxLayout()
         row.addWidget(self.lbl_turn)
         row.addWidget(self.lbl_score)
-        layout.addLayout(row)
+        control_layout.addLayout(row)
 
-        # countdown ------------------------------------------------------------
         self.lbl_timer = QLabel(self._fmt_time(self.remaining_time))
         self.lbl_timer.setAlignment(Qt.AlignCenter)
-        self.lbl_timer.setFrameStyle(QFrame.Panel | QFrame.Sunken)
-        layout.addWidget(self.lbl_timer)
+        self.lbl_timer.setObjectName("metric")
+        control_layout.addWidget(self.lbl_timer)
 
-        # status ---------------------------------------------------------------
         self.lbl_status = QLabel(f"Status: {self.current_state.value}")
-        self.lbl_status.setFrameStyle(QFrame.Panel | QFrame.Sunken)
-        layout.addWidget(self.lbl_status)
+        self.lbl_status.setObjectName("metric")
+        control_layout.addWidget(self.lbl_status)
 
-        # control buttons ------------------------------------------------------
         self.btn_start = QPushButton("Start")
         self.btn_continue = QPushButton("Continue")
         self.btn_pause = QPushButton("Pause")
         self.btn_stop = QPushButton("Stop")
         self.btn_restart = QPushButton("Restart")
         self.btn_quit = QPushButton("Quit")
+        self.btn_stop.setObjectName("danger")
+        self.btn_quit.setObjectName("secondary")
 
-        # button → command mapping --------------------------------------------
         self._cmd_map = {
             self.btn_start: ("start", self.startClicked),
             self.btn_continue: ("continue", self.continueClicked),
@@ -163,23 +264,23 @@ class SimonGUI(QWidget):
         }
 
         row1 = QHBoxLayout()
-        for b in (self.btn_start, self.btn_continue, self.btn_pause):
-            b.clicked.connect(self._on_button)
-            row1.addWidget(b)
-        layout.addLayout(row1)
+        for button in (self.btn_start, self.btn_continue, self.btn_pause):
+            button.clicked.connect(self._on_button)
+            row1.addWidget(button)
+        control_layout.addLayout(row1)
 
         row2 = QHBoxLayout()
-        for b in (self.btn_stop, self.btn_restart, self.btn_quit):
-            b.clicked.connect(self._on_button)
-            row2.addWidget(b)
-        layout.addLayout(row2)
+        for button in (self.btn_stop, self.btn_restart, self.btn_quit):
+            button.clicked.connect(self._on_button)
+            row2.addWidget(button)
+        control_layout.addLayout(row2)
+        control_layout.addStretch(1)
 
-    # ───────────────────── build the Qt state machine ─────────────────────
+        root.addWidget(control_panel, 1)
 
     def _build_fsm(self):
         self.machine = QStateMachine(self)
 
-        # create states --------------------------------------------------------
         self.s_idle = QState()
         self.s_intro = QState()
         self.s_intro_wait = QState()
@@ -199,114 +300,87 @@ class SimonGUI(QWidget):
         self.machine.addState(self.s_terminated)
         self.machine.setInitialState(self.s_idle)
 
-        # ── transitions -------------------------------------------------------
         self.s_idle.addTransition(self.startClicked, self.s_intro)
-
         self.s_intro.addTransition(self.rulesReceived, self.s_intro_wait)
-
         self.s_intro_wait.addTransition(self.continueClicked, self.s_calibrating)
         self.s_intro_wait.addTransition(self.stopClicked, self.s_game_over)
-
-        self.s_calibrating.addTransition(self.continueClicked, self.s_in_game)  # Calibrating → InGame
-        self.s_calibrating.addTransition(self.stopClicked, self.s_game_over)  # Calibrating → Game Over
-
+        self.s_calibrating.addTransition(self.continueClicked, self.s_in_game)
+        self.s_calibrating.addTransition(self.stopClicked, self.s_game_over)
         self.s_in_game.addTransition(self.pauseClicked, self.s_paused)
-        self.s_in_game.addTransition(self.stopClicked, self.s_game_over) # Stop ⇒ Game Over
         self.s_in_game.addTransition(self.stopClicked, self.s_game_over)
-        # self.s_in_game.addTransition(self.restartClicked, self.s_idle)
-
         self.s_paused.addTransition(self.continueClicked, self.s_in_game)
         self.s_paused.addTransition(self.stopClicked, self.s_game_over)
-        # self.s_paused.addTransition(self.restartClicked, self.s_idle)
-
-        # Game Over ⇒ Restart ⇒ Idle
         self.s_game_over.addTransition(self.restartClicked, self.s_idle)
 
-        # global transitions ---------------------------------------------------
-        for st in (self.s_idle, self.s_intro, self.s_intro_wait, self.s_calibrating, self.s_in_game, self.s_paused, self.s_game_over):
-            st.addTransition(self.quitClicked, self.s_terminated)
+        for state in (
+            self.s_idle,
+            self.s_intro,
+            self.s_intro_wait,
+            self.s_calibrating,
+            self.s_in_game,
+            self.s_paused,
+            self.s_game_over,
+        ):
+            state.addTransition(self.quitClicked, self.s_terminated)
 
-        # ── state‑entry callbacks --------------------------------------------
         self.s_idle.entered.connect(lambda: self._on_enter_state(GameState.IDLE))
         self.s_intro.entered.connect(lambda: self._on_enter_state(GameState.INTRO))
         self.s_intro_wait.entered.connect(lambda: self._on_enter_state(GameState.INTRO_WAIT))
         self.s_calibrating.entered.connect(lambda: self._on_enter_state(GameState.CALIBRATING))
         self.s_in_game.entered.connect(lambda: self._on_enter_state(GameState.IN_GAME))
         self.s_paused.entered.connect(lambda: self._on_enter_state(GameState.PAUSED))
-        self.s_game_over.entered.connect(lambda: self._on_enter_state(GameState.GAME_OVER)) 
+        self.s_game_over.entered.connect(lambda: self._on_enter_state(GameState.GAME_OVER))
         self.s_terminated.entered.connect(lambda: self._on_enter_state(GameState.TERMINATED))
 
         self.machine.start()
 
-    # ─────────────────────── button / ROS handlers ────────────────────────
-
     def _on_button(self):
         btn = self.sender()
         cmd, signal = self._cmd_map[btn]
-        # publish ROS control command ----------------------------------------
         self.cmd_pub.publish(cmd)
         rospy.loginfo(f"[GUI] Sent command: {cmd}")
-        # emit FSM trigger ----------------------------------------------------
         signal.emit()
         if cmd == "quit":
-            # terminate ROS + Qt event loops
             rospy.signal_shutdown("Quit via GUI")
             QApplication.quit()
-
-    # ── state entry common logic --------------------------------------------
 
     def _on_enter_state(self, new_state: GameState):
         self.current_state = new_state
         self.lbl_status.setText(f"Status: {new_state.value}")
+
         if new_state == GameState.CALIBRATING:
             self.lbl_prompt.setText("Calibrating… please follow the on-screen hints.")
         rospy.loginfo(f"[GUI] → {new_state.value}")
 
-        # manage countdown ---------------------------------------------------
         if new_state == GameState.IN_GAME:
             self.remaining_time = self.turn_timeout
             self.lbl_timer.setText(self._fmt_time(self.remaining_time))
-            # if not self.ticker.isActive():
-            rospy.loginfo("[GUI] TIMER STARTED in InGame") 
+            rospy.loginfo("[GUI] TIMER STARTED in InGame")
             self.ticker.start(1000)
         else:
-            # self.ticker.stop()
             self.remaining_time = self.turn_timeout
             self.lbl_timer.setText(self._fmt_time(self.remaining_time))
 
-        # reset counters at fresh intro --------------------------------------
         if new_state == GameState.INTRO:
             self.current_turn = 0
             self.current_score = 0
             self.lbl_turn.setText(f"Turn: 0/{self.total_rounds}")
             self.lbl_score.setText("Score: 0")
-            self.lbl_prompt.setText("Welcome to Simon Says game with Flo robot!\n") 
+            self.lbl_prompt.setText("Welcome to Simon Says game with Flo robot!\n")
         elif new_state == GameState.IDLE:
-            # Coming here after Stop/Restart → wait for fresh “Waiting…”
             self.ready_for_start = False
-            # clear GUI after stop/restart
             self.lbl_prompt.setText("Press Start to begin\n")
         elif new_state == GameState.GAME_OVER:
-            # Stop countdown, keep the last score/turn visible
             self.ticker.stop()
             self.remaining_time = self.turn_timeout
             self.lbl_timer.setText(self._fmt_time(self.remaining_time))
-        
-
-
 
         self._update_buttons()
-
-    # ───────────────────────── countdown tick ──────────────────────────────
 
     def _tick_timer(self):
         if self.remaining_time > 0:
             self.remaining_time -= 1
             self.lbl_timer.setText(self._fmt_time(self.remaining_time))
-        # else:
-        #     self.ticker.stop()
-
-    # ─────────────────────────── ROS callbacks ─────────────────────────────
 
     def _cb_score(self, msg: Int32):
         self.current_score = msg.data
@@ -314,24 +388,14 @@ class SimonGUI(QWidget):
 
     def _cb_prompt(self, msg: String):
         text = msg.data
-        
         self.lbl_prompt.setText(f"Prompt: {text}")
-        # intro → intro_wait trigger ----------------------------------------
-        # if self.current_state == GameState.IN_GAME:
-        #     self.remaining_time = self.turn_timeout
-        #     self.lbl_timer.setText(self._fmt_time(self.remaining_time))
-        #     # Regardless of whether the timer was stopped or running before, always restart it
-        #     self.ticker.start(1000)
-        
+
         if self.current_state == GameState.INTRO:
             self.rulesReceived.emit()
 
-        # Calibration finished → Calibrating → InGame
         if self.current_state == GameState.CALIBRATING:
-            # Stage 1 → Stage 2
             if text.startswith("Great"):
                 self.calib_ready = False
-            # Final ready (old or new phrasing)
             elif text.startswith("Perfect") or text.startswith("Calibration complete"):
                 self.calib_ready = True
                 self._update_buttons()
@@ -340,28 +404,50 @@ class SimonGUI(QWidget):
         rospy.loginfo(f"[GUI] _cb_turn: ticker active? {self.ticker.isActive()}")
         self.current_turn = msg.data
         self.lbl_turn.setText(f"Turn: {self.current_turn}/{self.total_rounds}")
-        if self.current_state == GameState.IN_GAME:          
+        if self.current_state == GameState.IN_GAME:
             self.remaining_time = self.turn_timeout
             self.lbl_timer.setText(self._fmt_time(self.remaining_time))
 
-    # ───────────────────────── helper methods ─────────────────────────────
+    def _cb_status(self, msg: String):
+        if "Waiting for Start command" in msg.data:
+            self.ready_for_start = True
+            self._update_buttons()
+
+    def _cb_preview_image(self, msg: Image):
+        try:
+            frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
+        except CvBridgeError as e:
+            rospy.logwarn(f"[GUI] Failed to decode preview image: {e}")
+            return
+
+        rgb = frame[:, :, ::-1]
+        height, width, channels = rgb.shape
+        bytes_per_line = channels * width
+        image = QImage(
+            rgb.tobytes(), width, height, bytes_per_line, QImage.Format_RGB888
+        ).copy()
+        self.cameraFrameReady.emit(image)
+
+    def _update_camera_frame(self, image: QImage):
+        self.current_camera_pixmap = QPixmap.fromImage(image)
+        self._render_camera_pixmap()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._render_camera_pixmap()
+
+    def _render_camera_pixmap(self):
+        if self.current_camera_pixmap is None:
+            return
+        self.camera_view.set_frame(self.current_camera_pixmap)
 
     @staticmethod
     def _fmt_time(seconds: int) -> str:
-        m, s = divmod(seconds, 60)
-        return f"{m:02d}:{s:02d}"
-
-   # ───────────────── status/ready callback ────────────────────────
-    def _cb_status(self, msg: String):
-       if "Waiting for Start command" in msg.data:
-           self.ready_for_start = True
-           self._update_buttons()          # re-evaluate button states
-
+        minutes, secs = divmod(seconds, 60)
+        return f"{minutes:02d}:{secs:02d}"
 
     def _update_buttons(self):
-        # Enable/disable buttons based on current state -------------------
-        # disable all first ---------------------------------------------------
-        for b in (
+        for button in (
             self.btn_start,
             self.btn_continue,
             self.btn_pause,
@@ -369,39 +455,33 @@ class SimonGUI(QWidget):
             self.btn_restart,
             self.btn_quit,
         ):
-            b.setEnabled(False)
+            button.setEnabled(False)
 
-        st = self.current_state
-        if st == GameState.IDLE and self.ready_for_start:
+        state = self.current_state
+        if state == GameState.IDLE and self.ready_for_start:
             self.btn_start.setEnabled(True)
-        elif st == GameState.INTRO:
-            pass  # waiting for rules
-        elif st == GameState.INTRO_WAIT:
+        elif state == GameState.INTRO_WAIT:
             self.btn_continue.setEnabled(True)
             self.btn_stop.setEnabled(True)
-        elif st == GameState.IN_GAME:
+        elif state == GameState.IN_GAME:
             self.btn_pause.setEnabled(True)
             self.btn_stop.setEnabled(True)
-        elif st == GameState.PAUSED:
+        elif state == GameState.PAUSED:
             self.btn_continue.setEnabled(True)
             self.btn_stop.setEnabled(True)
-        elif st == GameState.GAME_OVER:          
+        elif state == GameState.GAME_OVER:
             self.btn_restart.setEnabled(True)
-        elif st == GameState.CALIBRATING:
+        elif state == GameState.CALIBRATING:
             self.btn_stop.setEnabled(True)
             self.btn_continue.setEnabled(self.calib_ready)
 
-
-        # Quit always enabled -------------------------------------------------
         self.btn_quit.setEnabled(True)
 
-
-# ────────────────────────────── main ───────────────────────────────────────
 
 def main():
     app = QApplication(sys.argv)
     gui = SimonGUI()
-    gui.show()
+    gui.showMaximized()
     sys.exit(app.exec_())
 
 

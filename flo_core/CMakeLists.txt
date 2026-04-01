@@ -3,8 +3,10 @@ project(flo_core)
 
 ## Find catkin and any catkin packages
 find_package(catkin REQUIRED COMPONENTS
+  cv_bridge
   roscpp
   rospy
+  sensor_msgs
   std_msgs
   moveit_ros_planning_interface
 )
@@ -18,7 +20,7 @@ catkin_python_setup()
 
 ## Declare a catkin package
 catkin_package(
-  CATKIN_DEPENDS roscpp rospy std_msgs moveit_ros_planning_interface
+  CATKIN_DEPENDS cv_bridge roscpp rospy sensor_msgs std_msgs moveit_ros_planning_interface
 )
 
 ## Include directories
@@ -38,6 +40,7 @@ install(DIRECTORY src/flo_core/
 ## Install Python executables
 catkin_install_python(PROGRAMS
   scripts/moveit_controller.py
+  scripts/simon_says_gui.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
@@ -48,4 +51,3 @@ install(DIRECTORY launch/
 install(DIRECTORY config/
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/config
 )
-

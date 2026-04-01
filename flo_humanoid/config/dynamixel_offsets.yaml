@@ -6,15 +6,15 @@
 
 offsets:
   # -------------  LEFT ARM  -------------
-  l1:  255   # left_shoulder_flexionextension
-  l2:  220       # left_shoulder_abductionadduction
-  l3:  130       # left_elbow_rotation
-  l4:  85       # left_elbow_flexionextension
+  l1:  255   # left_shoulder_flexionextension - id: 111
+  l2:  220       # left_shoulder_abductionadduction - id: 112
+  l3:  130       # left_elbow_rotation - id: 122
+  l4:  85       # left_elbow_flexionextension - id: 121
 
 
   # -------------  RIGHT ARM -------------
-  r1:  155       # right_shoulder_flexionextension
-  r2:  223      # right_shoulder_abductionadduction
-  r3:  185       # right_elbow_rotation
-  r4:  280      # right_elbow_flexionextension
+  r1:  155       # right_shoulder_flexionextension - id: 211
+  r2:  223      # right_shoulder_abductionadduction - id: 212
+  r3:  185       # right_elbow_rotation - id: 222
+  r4:  280      # right_elbow_flexionextension - id: 221
 

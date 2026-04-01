@@ -1,6 +1,7 @@
 // This code is based on the readWriteArm.cpp code; it has been expanded to control the 8 joint motors ofb both robot arms present in the FLO v2 humanoid robot.
 
 #include <ros/ros.h>
+#include <cstdlib>
 #include "std_msgs/String.h"
 #include "flo_humanoid/GetArmsJointPositions.h"
 #include "flo_humanoid/SetArmsJointPositions.h"
@@ -43,7 +44,14 @@ using namespace dynamixel;
 // BAUDRATE should be defined here.
 #define BAUDRATE             1000000            // Default Baudrate of DYNAMIXEL X series
 //set up fixed mount point for the device, this is the same as the one set in the udev rules file.
-#define DEVICE_NAME          "/dev/ttyUSB0"  // [Linux] To find assigned port, use "$ ls /dev/ttyUSB*" command
+const char * resolve_motor_device() {
+  const char *device = std::getenv("FLO_MOTORS_DEVICE");
+  if (device != nullptr && device[0] != '\0') {
+    return device;
+  }
+  return "/dev/ttyUSB0";
+}
+
 const uint32_t PROFILE_ACCEL      = 1000;  // ≈107 k rev/min²
 const uint32_t PROFILE_VEL        = 400;  // ≈45.8 rev/min
 const uint32_t P_GAIN_XM          = 81;  // Position P Gain
@@ -54,7 +62,7 @@ const uint32_t D_GAIN_XL          = 18;     // Position D Gain
 // and DXL5_ID, DXL6_ID, DXL7_ID, DXL8_ID are connected to the device labeled DEVICE_NAME2
 
 
-PortHandler * portHandler = PortHandler::getPortHandler(DEVICE_NAME);
+PortHandler * portHandler = PortHandler::getPortHandler(resolve_motor_device());
 PacketHandler * packetHandler = PacketHandler::getPacketHandler(PROTOCOL_VERSION);
 
 GroupBulkRead groupBulkRead(portHandler, packetHandler);

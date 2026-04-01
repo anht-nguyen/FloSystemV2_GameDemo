@@ -1,6 +1,13 @@
+import sys
 from time import sleep
+from pathlib import Path
 from dynamixel_sdk import PortHandler, PacketHandler
-port='/dev/ttyUSB0'; baud=1000000; dxl_id=112
+
+repo_root = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(repo_root / "utility"))
+from device_paths import get_device_paths
+
+port = get_device_paths()["motors"]; baud=1000000; dxl_id=112
 ph=PortHandler(port); ph.openPort(); ph.setBaudRate(baud)
 pk=PacketHandler(2.0)
 

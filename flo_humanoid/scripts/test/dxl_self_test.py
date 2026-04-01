@@ -3,7 +3,7 @@
 """
 
   python3 flo_humanoid/scripts/dxl_self_test.py \
-    --ports /dev/ttyUSB0 /dev/ttyUSB1 \
+    --ports /dev/flo_motors \
     --ids 111 112 211 212 \
     --baudrate 1000000 \
     --write-test
@@ -13,6 +13,7 @@
 import argparse
 import sys
 import time
+from pathlib import Path
 from typing import Dict, List, Tuple
 
 try:
@@ -236,8 +237,15 @@ def open_ports(ports: List[str], baudrate: int) -> Dict[str, PortHandler]:
 
 
 def main():
+    repo_root = Path(__file__).resolve().parents[3]
+    sys.path.insert(0, str(repo_root / "utility"))
+    from device_paths import get_device_paths
+
+    device_paths = get_device_paths()
+    default_ports = [device_paths["motors"]]
+
     parser = argparse.ArgumentParser(description="Dynamixel SDK independent self-test script (connection and register read/write)")
-    parser.add_argument("--ports", nargs="+", required=True, help="Serial device list, e.g. /dev/ttyUSB0 /dev/ttyUSB1")
+    parser.add_argument("--ports", nargs="+", default=default_ports, help="Serial device list. Defaults to resolved FLO motor device paths.")
     parser.add_argument("--ids", nargs="+", type=int, required=True, help="Dynamixel ID list, e.g. 111 112 211 212")
     parser.add_argument("--baudrate", type=int, default=1000000, help="Baud rate, default 1000000")
     parser.add_argument("--protocol", type=float, default=2.0, help="Protocol version, default 2.0")
@@ -282,4 +290,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

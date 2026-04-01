@@ -1,216 +1,274 @@
 # FloSystemV2_GameDemo
 
-A ROS-based system for controlling and simulating the FLO V2 humanoid robot, including motor control, vision, and integration with simulation/game environments.
+ROS Noetic workspace for the FLO V2 robot demo, including dual-arm control, face control, camera-based pose tracking, MoveIt/Gazebo simulation, and the Simon Says game flow.
 
----
+## What This Repo Includes
 
-## Table of Contents
+- `flo_core`: Simon Says game runner, MoveIt action server, GUI, Gazebo and MoveIt launch files.
+- `flo_humanoid`: Dynamixel-based arm hardware interface and motor-control nodes.
+- `flo_vision`: USB camera launcher and MediaPipe-based arm/hand pose tracker.
+- `flo_face`: Face display launcher and serial communication support.
+- `flo_core_defs`: Shared ROS messages, services, and actions.
+- `flov2_robot_description`: URDF, SRDF, meshes, and robot description assets.
+- `utility/`: Host-side helpers for device-path resolution and udev rule generation.
 
-- [Overview](#overview)
-- [Project Structure](#project-structure)
-- [Prerequisites](#prerequisites)
-- [Docker Setup](#docker-setup)
-- [Building and Running with Docker](#building-and-running-with-docker)
-- [Manual (Non-Docker) Build](#manual-non-docker-build)
-- [Usage](#usage)
-- [License](#license)
+## Current Startup Flow
 
----
+The current Docker workflow launches the full demo stack automatically inside a `tmux` session:
 
-## Overview
+1. `roscore`
+2. robot simulation via `roslaunch flo_core full_robot_arm_sim.launch`
+3. camera via `roslaunch flo_vision usb_cam_launcher.launch`
+4. pose tracking via `roslaunch flo_vision arm_hand_tracker_launcher.launch`
+5. pose-score monitor
+6. arm hardware interface via `roslaunch flo_humanoid dual_arm_hardware.launch`
+7. face launcher via `roslaunch flo_face flo_face_launcher.launch`
+8. Simon Says game via `roslaunch flo_core simonsays_launcher_prod.launch`
 
-This repository contains all core packages for the FLO V2 robot demo, including:
+That behavior is defined in [`ros_docker_auto_startup_launcher.sh`](/home/rrl/FloSystemV2_GameDemo/ros_docker_auto_startup_launcher.sh).
 
-- `flo_core`: Main control logic and integration scripts.
-- `flo_humanoid`: Nodes for motor control and simulation of the humanoid robot.
-- `flo_vision`: Hand and arm tracking using MediaPipe and OpenCV.
-- `flo_core_defs`: Shared message and service definitions.
-- `flov2_robot_description`: Robot URDF and description files.
-- `flo_face`:
+## Requirements
 
----
+- Ubuntu host machine
+- Docker Engine with the Docker Compose plugin
+- Git
+- X11 access for GUI apps
+- PulseAudio or PipeWire audio on the host
+- Optional but recommended:
+  - USB camera
+  - motor controller connected over serial
+  - face controller connected over serial
+  - AWS credentials for Amazon Polly
 
-## Project Structure
+## Quick Start With Docker
 
-```plaintext
+### 1. Clone the repo
+
+```bash
+git clone https://github.com/anht-nguyen/FloSystemV2_GameDemo.git
+cd FloSystemV2_GameDemo
+```
+
+### 2. Install Docker prerequisites
+
+```bash
+sudo apt update
+sudo apt install -y docker.io docker-compose-plugin git
+sudo systemctl enable docker
+sudo systemctl start docker
+sudo usermod -aG docker "$USER"
+newgrp docker
+```
+
+### 3. Create AWS credential files
+
+The Docker image expects local files under `certs/`, and `docker-compose.yml` bind-mounts them into the container.
+
+```bash
+mkdir -p certs
+```
+
+Create `certs/aws-credentials`:
+
+```ini
+[flo]
+aws_access_key_id = YOUR_AWS_KEY_ID
+aws_secret_access_key = YOUR_AWS_SECRET_KEY
+```
+
+Create `certs/aws-config`:
+
+```ini
+[profile flo]
+region = us-east-1
+output = json
+```
+
+If you are not using Polly yet, create placeholder files so the Docker build and bind mounts still succeed.
+
+### 4. Resolve device paths
+
+The repo now includes a device helper that exports stable environment variables used by Docker and ROS launch files:
+
+```bash
+eval "$(python3 utility/device_paths.py --format shell)"
+```
+
+This sets:
+
+- `FLO_CAMERA_DEVICE`
+- `FLO_MOTORS_DEVICE`
+- `FLO_FACE_DEVICE`
+- `FLO_CAMERA_SOURCE`
+- `FLO_MOTORS_SOURCE`
+- `FLO_FACE_SOURCE`
+
+By default it uses:
+
+- udev symlinks if `/etc/udev/rules.d/99-flo-devices.rules` exists
+- otherwise legacy paths such as `/dev/video0`, `/dev/ttyUSB0`, and `/dev/ttyACM0`
+
+### 5. Build and start
+
+Before starting GUI apps from Docker, allow local X11 access:
+
+```bash
+xhost +local:
+export UID
+export GID=$(id -g)
+export XAUTHORITY=${XAUTHORITY:-$HOME/.Xauthority}
+export PULSE_DIR=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/pulse
+eval "$(python3 utility/device_paths.py --format shell)"
+docker compose build
+docker compose up -d
+```
+
+### 6. Inspect the running stack
+
+The container stays up and launches ROS processes in `tmux`.
+
+```bash
+docker exec -it flo_game tmux ls
+docker exec -it flo_game tmux attach -t ros
+```
+
+To stop everything:
+
+```bash
+docker compose down
+```
+
+## Device Setup
+
+### Recommended: persistent udev rules
+
+To avoid device-number changes across reboots, generate stable symlinks on the host:
+
+```bash
+sudo python3 utility/create_udev_rules.py \
+  --camera /dev/video0 \
+  --motors /dev/ttyUSB0 \
+  --face /dev/ttyACM0 \
+  -o /etc/udev/rules.d/99-flo-devices.rules
+
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+ls -l /dev/flo_camera /dev/flo_motors /dev/flo_face
+```
+
+Once installed, `utility/device_paths.py` will prefer `/dev/flo_camera`, `/dev/flo_motors`, and `/dev/flo_face`.
+
+## Simon Says Demo
+
+The main game launch file is:
+
+```bash
+roslaunch flo_core simonsays_launcher_prod.launch
+```
+
+That launch file starts:
+
+- `moveit_controller.py`
+- `game_runner.py`
+- `simon_says_gui.py`
+
+Game parameters are loaded from [`flo_core/config/simonsays_game_params.yaml`](/home/rrl/FloSystemV2_GameDemo/flo_core/config/simonsays_game_params.yaml).
+
+## Common Commands
+
+### Run the vision stack manually
+
+```bash
+eval "$(python3 utility/device_paths.py --format shell)"
+roslaunch flo_vision usb_cam_launcher.launch
+roslaunch flo_vision arm_hand_tracker_launcher.launch
+```
+
+### Run the dual-arm hardware interface
+
+```bash
+roslaunch flo_humanoid dual_arm_hardware.launch
+```
+
+### Run the face controller
+
+```bash
+roslaunch flo_face flo_face_launcher.launch
+```
+
+### Exercise demo arm motions
+
+```bash
+./demo_show_actions.sh --side right --repeat 1
+```
+
+## Host Auto-Startup
+
+The repo now includes a host-side startup path for kiosk/demo deployments:
+
+- [`host_auto_startup_launcher.sh`](/home/rrl/FloSystemV2_GameDemo/host_auto_startup_launcher.sh): waits for network, updates the repo, resolves devices, then starts Docker Compose
+- [`flo_game.service`](/home/rrl/FloSystemV2_GameDemo/flo_game.service): systemd unit for launching the demo at boot
+
+Important: [`flo_game.service`](/home/rrl/FloSystemV2_GameDemo/flo_game.service) is currently checked in with `User=rrl` and paths under `/home/rrl/...`. Update those values before installing it on another machine.
+
+Install example:
+
+```bash
+sudo cp host_auto_startup_launcher.sh /usr/local/bin/host_auto_startup_launcher.sh
+sudo chmod 755 /usr/local/bin/host_auto_startup_launcher.sh
+sudo cp flo_game.service /etc/systemd/system/flo_game.service
+sudo systemctl daemon-reload
+sudo systemctl enable flo_game.service
+```
+
+Check logs after reboot:
+
+```bash
+systemctl status flo_game.service
+tail -n 100 "$HOME/flo_game_startup.log"
+```
+
+## Non-Docker Development
+
+For host-native setup, use [`dev_install.sh`](/home/rrl/FloSystemV2_GameDemo/dev_install.sh). It currently targets Ubuntu 22.04-style developer bootstrapping and installs:
+
+- Docker and desktop helpers
+- ROS Noetic binaries
+- catkin tools and rosdep
+- Astra/OpenNI-related dependencies
+
+After setup, the non-Docker tmux launcher is:
+
+```bash
+./nondocker_ros_auto_startup_launcher.sh
+```
+
+## Repo Layout
+
+```text
 FloSystemV2_GameDemo/
-├── docker-compose.yml
 ├── Dockerfile
+├── docker-compose.yml
 ├── flo_core/
 ├── flo_core_defs/
 ├── flo_face/
 ├── flo_humanoid/
 ├── flo_vision/
 ├── flov2_robot_description/
-├── utility_scripts/
-└── ...
+├── utility/
+├── ros_docker_auto_startup_launcher.sh
+├── nondocker_ros_auto_startup_launcher.sh
+├── host_auto_startup_launcher.sh
+└── flo_game.service
 ```
 
----
+## Notes
 
-## Prerequisites
-
-### Setting up Host machine
-
-1. Install Ubuntu 22 or 24
-2. Install [docker](https://docs.docker.com/engine/install/ubuntu/) and complete the post installation steps, then test docker by running the hello world image
-   Note: after installing Docker engine and Docker Compose plugin do the following:
-
-   a. Enable and start the Docker service
-
-   ```sh
-   sudo systemctl enable docker
-   sudo systemctl start docker
-   ```
-
-   b. Add your user to the docker group (to run without sudo)
-
-   ```sh
-   sudo usermod -aG docker $USER
-   ```
-
-   c. Verify installation: `docker run hello-world`, `docker compose version`
-3. Install git: `sudo apt install git-all`
-4. Clone this repo into `~/Documents/git/`
-5. Set up AWS Polly: You need to setup [Amazon Polly](#amazon-polly) This should be as easy as just answering the questions during the install script.
-
-  a. Create `certs` directory:
-
-```
-  cd ~/Documents/git/FloSystemV2_GameDemo   
-  mkdir certs  
-```
-
-  b. Add your AWS access keys: Inside `certs`, create a file named `aws-credentials` with these three lines (replace with your actual keys):
-
-```
-  [flo]
-  aws_access_key_id = YOUR_AWS_KEY_ID
-  aws_secret_access_key = YOUR_AWS_SECRET_KEY
-```
-
-  c. Add AWS CLI config: Also in `certs`, create `aws-config` containing:
-
-```
-  [profile flo]
-  region = us-east-1
-  output = json
-```
-
-6. Set up Astra camera
-7. Build Docker containner:
-
-```sh
-  docker compose build       # ~10 min the first time
-  docker compose up          # starts a bash prompt inside the catkin_ws
-```
-
-6. Automatically startup docker and the game:
-
-   1. Install the launcher script: 
-   ```sh
-    sudo cp host_auto_startup_launcher.sh /usr/local/bin/host_auto_startup_launcher.sh
-    sudo chown root:root /usr/local/bin/host_auto_startup_launcher.sh
-    sudo chmod 755 /usr/local/bin/host_auto_startup_launcher.sh
-   ```
-   2. Replace `your_username` with your actual Linux username and Install the service file:
-   ```sh
-    sudo cp flo_game.service /etc/systemd/system/flo_game.service
-    sudo systemctl daemon-reload
-    sudo systemctl enable flo_game.service
-   ```
-   3. Reboot and verify:
-   ```sh
-    sudo reboot
-    # After login:
-    systemctl status flo_game.service
-    tail -n 50 $HOME/flo_game_startup.log
-   ```
-   
-
----
-
-## Building and Running with Docker
-
-## Usage
-
-At startup
-
-### Running Key Nodes
-
-- **Read and Write Joint Motor Positions:**
-  ```sh
-  rosrun flo_humanoid read_write_joint_node
-  ```
-- **Read and Write Single Arm Motor Data:**
-  ```sh
-  rosrun flo_humanoid read_write_arm_node
-  ```
-- **Control Both Arms Simultaneously:**
-  ```sh
-  rosrun flo_humanoid read_write_arms_node
-  ```
-- **Publish Motor Positions for Testing:**
-  ```sh
-  rosrun flo_humanoid publish_motor_positions
-  ```
-- **Subscribe to Motor Position Data:**
-  ```sh
-  rosrun flo_humanoid subscribe_motor_positions
-  ```
-
-### Vision Node Example
-
-- **USB Camera:**
-  ```sh
-  rosrun usb_cam usb_cam_node _video_device:=/dev/video0
-  rosrun flo_vision arm_hand_tracker_node.py _image:=/usb_cam/image_raw _preview:=true _pose:=wave
-  ```
-
----
-
-## Misc.
-
-### Amazon Polly
-
-Polly will need to have access to AWS to work. To set that up, go to the
-[IAM Console](https://console.aws.amazon.com/iam) and click on users. Then
-select the user you want to give access to. Click "Create access key" under
-Security Credentials. Then in the console on the computer run `./aws_install.sh`
-which will
-[install the AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html)
-for you and run `aws configure --profile flo`, it will prompt you for input an
-you should fill in the info from the IAM console with region set to us-east-1
-and output set to json.
-
-A few notes:
-
-- you should probably restrict what the user that is getting access can do. The
-  best option is to set the permissions to AmazonPollyReadOnlyAccess
-- You can have other users configured. By changing the --profile, you control
-  the name of the user if no profile is specified, then the information is saved
-  to a default
-- If you ever need to revoke permissions for a user, that can be done from the
-  IAM Console by deactivating the user's Access Keys.
-- TODO: I would like to find a way to limit how many calls can be made by a
-  user.
-- To check whether polly is available given the profile, run
-  `aws polly help --profile flo`. If you get back a list of commands to run on
-  polly, you should be good.
-- To fully test, can run:
-  `aws polly synthesize-speech --output-format mp3 --voice-id Ivy --text 'hello, this is a test' --profile flo test.mp3`
-  and then play the audio by installing: `sudo apt install mpg123` and typing
-  `mpg123 test.mp3`
-- you might find that you are getting some sort of server connection errors. you
-  can resolve that by running `pip3 install -U boto3` (this should now be a part
-  of the install script, but it is commented out)
-
----
-
-### Astra camera setting up
-
----
+- The stack currently targets ROS Noetic.
+- The Docker image builds the catkin workspace during image creation.
+- `docker-compose.yml` runs the container in privileged mode so camera, serial, audio, and hot-plugged devices can be passed through cleanly.
+- GUI, audio, and AWS credentials all rely on host-side environment and mounted files being present.
 
 ## License
 
-TBD
+License information has not been finalized in this repository yet.

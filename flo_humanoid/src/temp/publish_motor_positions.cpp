@@ -25,7 +25,7 @@ using namespace dynamixel;
 
 
 #define BAUDRATE 57600  // Default Baudrate of DYNAMIXEL X series
-#define DEVICE_NAME "/dev/ttyUSB0"  // [Linux] To find assigned port, use "$ ls /dev/ttyUSB*" command
+#define DEVICE_NAME "/dev/flo_motors"  // prefer the stable udev symlink when it exists
 
 PortHandler *portHandler = PortHandler::getPortHandler(DEVICE_NAME);
 PacketHandler *packetHandler = PacketHandler::getPacketHandler(PROTOCOL_VERSION);

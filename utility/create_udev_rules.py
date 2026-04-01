@@ -6,15 +6,15 @@ Run this on the Linux host, not inside Docker. Example:
     python3 utility/create_udev_rules.py \
         --camera /dev/video0 \
         --motors /dev/ttyUSB0 \
-        --teensy /dev/ttyACM0 \
+        --face /dev/ttyACM0 \
         -o 99-flo-devices.rules
 
 Install directly to udev on the host:
 
 sudo python3 utility/create_udev_rules.py \
-  --camera /dev/video1 \
+  --camera /dev/video0 \
   --motors /dev/ttyUSB0 \
-  --teensy /dev/ttyACM0 \
+  --face /dev/ttyACM0 \
   -o /etc/udev/rules.d/99-flo-devices.rules
 
 
@@ -25,7 +25,7 @@ sudo udevadm trigger
 
 Then confirm:
 
-ls -l /dev/flo_camera /dev/flo_motors /dev/flo_teensy
+ls -l /dev/flo_camera /dev/flo_motors /dev/flo_face
 
 """
 
@@ -71,9 +71,9 @@ def parse_args() -> argparse.Namespace:
         help="Current motor controller device node, for example /dev/ttyUSB0.",
     )
     parser.add_argument(
-        "--teensy",
+        "--face",
         type=Path,
-        help="Current teensy device node, for example /dev/ttyACM0.",
+        help="Current face device node, for example /dev/ttyACM0.",
     )
     parser.add_argument(
         "-o",
@@ -91,7 +91,7 @@ def iter_specs(args: argparse.Namespace) -> Iterable[DeviceSpec]:
     candidates = [
         ("camera", "flo_camera", "video4linux", args.camera),
         ("motors", "flo_motors", "tty", args.motors),
-        ("teensy", "flo_teensy", "tty", args.teensy),
+        ("face", "flo_face", "tty", args.face),
     ]
     for label, symlink, subsystem, devnode in candidates:
         if devnode is not None:
@@ -178,7 +178,7 @@ def main() -> int:
     specs = list(iter_specs(args))
     if not specs:
         print(
-            "No devices specified. Provide at least one of --camera, --motors, or --teensy.",
+            "No devices specified. Provide at least one of --camera, --motors, or --face.",
             file=sys.stderr,
         )
         return 2

@@ -30,7 +30,7 @@ using namespace dynamixel;
 // BAUDRATE should be defined here.
 #define BAUDRATE             57600            // Default Baudrate of DYNAMIXEL X series
 //set up fixed mount point for the device, this is the same as the one set in the udev rules file.
-#define DEVICE_NAME          "/dev/ttyUSB0"  // [Linux] To find assigned port, use "$ ls /dev/ttyUSB*" command
+#define DEVICE_NAME          "/dev/flo_motors"  // prefer the stable udev symlink, fallback via env when available
 
 
 PortHandler * portHandler = PortHandler::getPortHandler(DEVICE_NAME);
@@ -328,7 +328,7 @@ void setJointPositionsCallback(const flo_humanoid::SetJointPositions::ConstPtr &
 
 int main(int argc, char ** argv)
 { 
-  // #define DEVICE_NAME          "/dev/ttyUSB0"
+  // #define DEVICE_NAME          "/dev/flo_motors"
   // PortHandler * portHandler = PortHandler::getPortHandler(DEVICE_NAME);
   // GroupBulkRead groupBulkRead(portHandler, packetHandler);
   // GroupBulkWrite groupBulkWrite(portHandler, packetHandler);
@@ -425,4 +425,3 @@ int main(int argc, char ** argv)
   portHandler->closePort();
   return 0;
 }
-

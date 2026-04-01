@@ -53,7 +53,8 @@ roscore
 2. Start the USB Camera Node
 
 ```sh
-rosrun usb_cam usb_cam_node _video_device:=/dev/video0 _image_width:=1280  _image_height:=720 _framerate:=30 _pixel_format:=yuyv image_raw:=/usb_cam/image_raw 
+eval "$(python3 utility/device_paths.py --format shell)"
+rosrun usb_cam usb_cam_node _video_device:=${FLO_CAMERA_DEVICE} _image_width:=1280  _image_height:=720 _framerate:=30 _pixel_format:=yuyv image_raw:=/usb_cam/image_raw 
 
 ```
 
@@ -125,7 +126,7 @@ rostopic echo -n1 /arm_hand_tracker/left_elbow_angle
 
 You should see numeric output if the tracker is running and detecting joints.
 
-- Ensure your webcam is connected and accessible as `/dev/video0`.
+- Ensure your webcam is connected and accessible as `${FLO_CAMERA_DEVICE}` after running `eval "$(python3 utility/device_paths.py --format shell)"`.
 - If you see no output on the joint angle topics, check that the camera node and tracker node are both running and that the image topic names match.
 - For additional debug information, run the tracker node with `_preview:=true` to see the processed video stream.
 - Testing `usb_cam`:

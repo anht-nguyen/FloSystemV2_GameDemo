@@ -968,6 +968,7 @@ class GameController:
         final_score = self.sm.userdata.score
         total      = self.params["total_rounds"]
         game_over_text = f"Game Over! Your final score is {final_score} out of {total}."
+        self.status_pub.publish(game_over_text)
         self.prompt_pub.publish(game_over_text)
         self.tts.speak(game_over_text)
         rospy.loginfo(f"Game finished: {outcome}")

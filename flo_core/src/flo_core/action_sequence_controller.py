@@ -38,6 +38,22 @@ class ActionSequenceController:
             Action.S_REACH_SIDE:    self._do_reach_side,
         }
 
+    def _sync_and_go_named(self, arm, target_name: str) -> None:
+        """Plan from the live state before executing a named target."""
+        arm.set_start_state_to_current_state()
+        arm.set_named_target(target_name)
+        arm.go(wait=True)
+        arm.stop()
+        arm.clear_pose_targets()
+
+    def _sync_and_go_joints(self, arm, joint_target: dict) -> None:
+        """Plan from the live state before executing a joint target."""
+        arm.set_start_state_to_current_state()
+        arm.set_joint_value_target(joint_target)
+        arm.go(wait=True)
+        arm.stop()
+        arm.clear_pose_targets()
+
     def execute_action(self, action: Action, side: str, reference_frame: str = 'world') -> None:
         """
         Execute the specified Action with the given arm side ('right' or 'left').
@@ -63,51 +79,39 @@ class ActionSequenceController:
     def _go_home(self, arm=None) -> None:
         """Send both arms to their home positions."""
         # Home both arms to their named targets
-        self.arm_R.set_named_target('Rhome')
-        self.arm_R.go()
-        self.arm_L.set_named_target('Lhome')
-        self.arm_L.go()
+        self._sync_and_go_named(self.arm_R, 'Rhome')
+        self._sync_and_go_named(self.arm_L, 'Lhome')
 
     # Dynamic actions (repeat 3 times)
     def _do_wave(self, arm) -> None:
         for _ in range(3):
-            arm.set_named_target(f"{arm.get_name()}_wave_start")
-            arm.go()
-            arm.set_named_target(f"{arm.get_name()}_wave_end")
-            arm.go()
+            self._sync_and_go_named(arm, f"{arm.get_name()}_wave_start")
+            self._sync_and_go_named(arm, f"{arm.get_name()}_wave_end")
 
     def _do_raise_dynamic(self, arm) -> None:
         for _ in range(3):
-            arm.set_named_target(f"{arm.get_name()}_raise")
-            arm.go()
-            arm.set_named_target(f"{arm.get_name()}_home")
-            arm.go()
+            self._sync_and_go_named(arm, f"{arm.get_name()}_raise")
+            self._sync_and_go_named(arm, f"{arm.get_name()}_home")
 
     def _do_swing_lateral(self, arm) -> None:
         for _ in range(3):
-            arm.set_named_target(f"{arm.get_name()}_waveb")
-            arm.go()
+            self._sync_and_go_named(arm, f"{arm.get_name()}_waveb")
             rospy.sleep(2.0)
-            arm.set_named_target(f"{arm.get_name()}_d_bell")
-            arm.go()
+            self._sync_and_go_named(arm, f"{arm.get_name()}_d_bell")
 
     def _do_swing_forward(self, arm) -> None:
         # placeholder: forward/backward swing implementation
         for _ in range(3):
-            arm.set_named_target(f"{arm.get_name()}_swing_fwd")
-            arm.go()
-            arm.set_named_target(f"{arm.get_name()}_swing_bwd")
-            arm.go()
+            self._sync_and_go_named(arm, f"{arm.get_name()}_swing_fwd")
+            self._sync_and_go_named(arm, f"{arm.get_name()}_swing_bwd")
 
     # Static actions (single execution)
     def _do_raise_static(self, arm) -> None:
-        arm.set_named_target(f"{arm.get_name()}_raise")
-        arm.go()
+        self._sync_and_go_named(arm, f"{arm.get_name()}_raise")
         rospy.sleep(2.0)
 
     def _do_reach_side(self, arm) -> None:
-        arm.set_named_target(f"{arm.get_name()}_reach_side")
-        arm.go()
+        self._sync_and_go_named(arm, f"{arm.get_name()}_reach_side")
 
     def _unknown_action(self, arm=None) -> None:
         rospy.logerr("Unknown action requested; no movement executed.")
@@ -186,8 +190,7 @@ class ActionSequenceController:
                 tgt.update(self.arm_L.get_named_target_values(seq_L[idx]))
             if idx < len(seq_R):
                 tgt.update(self.arm_R.get_named_target_values(seq_R[idx]))
-            self.arm_D.set_joint_value_target(tgt)
-            self.arm_D.go()
+            self._sync_and_go_joints(self.arm_D, tgt)
 
     def _go_home_dual(self):
         """Home both arms with one trajectory on the dual group."""
@@ -195,7 +198,6 @@ class ActionSequenceController:
             tgt = {}
             tgt.update(self.arm_R.get_named_target_values("Rhome"))
             tgt.update(self.arm_L.get_named_target_values("Lhome"))
-            self.arm_D.set_joint_value_target(tgt)
-            self.arm_D.go()
+            self._sync_and_go_joints(self.arm_D, tgt)
         else:
             self._go_home()  # fall back

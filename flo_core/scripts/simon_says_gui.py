@@ -84,6 +84,11 @@ class SimonGUI(QWidget):
     quitClicked = pyqtSignal()
     rulesReceived = pyqtSignal()
     cameraFrameReady = pyqtSignal(QImage)
+    scoreUpdated = pyqtSignal(int)
+    promptUpdated = pyqtSignal(str)
+    turnUpdated = pyqtSignal(int)
+    statusUpdated = pyqtSignal(str)
+    backendGameOver = pyqtSignal()
 
     def __init__(self):
         super().__init__()
@@ -104,6 +109,10 @@ class SimonGUI(QWidget):
 
         self._build_ui()
         self.cameraFrameReady.connect(self._update_camera_frame)
+        self.scoreUpdated.connect(self._apply_score_update)
+        self.promptUpdated.connect(self._apply_prompt_update)
+        self.turnUpdated.connect(self._apply_turn_update)
+        self.statusUpdated.connect(self._apply_status_update)
 
         self.ticker = QTimer(self)
         self.ticker.timeout.connect(self._tick_timer)
@@ -313,6 +322,15 @@ class SimonGUI(QWidget):
         self.s_game_over.addTransition(self.restartClicked, self.s_idle)
 
         for state in (
+            self.s_intro,
+            self.s_intro_wait,
+            self.s_calibrating,
+            self.s_in_game,
+            self.s_paused,
+        ):
+            state.addTransition(self.backendGameOver, self.s_game_over)
+
+        for state in (
             self.s_idle,
             self.s_intro,
             self.s_intro_wait,
@@ -339,6 +357,9 @@ class SimonGUI(QWidget):
         cmd, signal = self._cmd_map[btn]
         self.cmd_pub.publish(cmd)
         rospy.loginfo(f"[GUI] Sent command: {cmd}")
+        if cmd == "start":
+            self.ready_for_start = False
+            self._update_buttons()
         signal.emit()
         if cmd == "quit":
             rospy.signal_shutdown("Quit via GUI")
@@ -368,7 +389,6 @@ class SimonGUI(QWidget):
             self.lbl_score.setText("Score: 0")
             self.lbl_prompt.setText("Welcome to Simon Says game with Flo robot!\n")
         elif new_state == GameState.IDLE:
-            self.ready_for_start = False
             self.lbl_prompt.setText("Press Start to begin\n")
         elif new_state == GameState.GAME_OVER:
             self.ticker.stop()
@@ -383,11 +403,22 @@ class SimonGUI(QWidget):
             self.lbl_timer.setText(self._fmt_time(self.remaining_time))
 
     def _cb_score(self, msg: Int32):
-        self.current_score = msg.data
-        self.lbl_score.setText(f"Score: {self.current_score}")
+        self.scoreUpdated.emit(msg.data)
 
     def _cb_prompt(self, msg: String):
-        text = msg.data
+        self.promptUpdated.emit(msg.data)
+
+    def _cb_turn(self, msg: Int32):
+        self.turnUpdated.emit(msg.data)
+
+    def _cb_status(self, msg: String):
+        self.statusUpdated.emit(msg.data)
+
+    def _apply_score_update(self, score: int):
+        self.current_score = score
+        self.lbl_score.setText(f"Score: {self.current_score}")
+
+    def _apply_prompt_update(self, text: str):
         self.lbl_prompt.setText(f"Prompt: {text}")
 
         if self.current_state == GameState.INTRO:
@@ -400,18 +431,21 @@ class SimonGUI(QWidget):
                 self.calib_ready = True
                 self._update_buttons()
 
-    def _cb_turn(self, msg: Int32):
+    def _apply_turn_update(self, turn_id: int):
         rospy.loginfo(f"[GUI] _cb_turn: ticker active? {self.ticker.isActive()}")
-        self.current_turn = msg.data
+        self.current_turn = turn_id
         self.lbl_turn.setText(f"Turn: {self.current_turn}/{self.total_rounds}")
         if self.current_state == GameState.IN_GAME:
             self.remaining_time = self.turn_timeout
             self.lbl_timer.setText(self._fmt_time(self.remaining_time))
 
-    def _cb_status(self, msg: String):
-        if "Waiting for Start command" in msg.data:
+    def _apply_status_update(self, status: str):
+        if "Waiting for Start command" in status:
             self.ready_for_start = True
+            self.calib_ready = False
             self._update_buttons()
+        elif "Game Over" in status:
+            self.backendGameOver.emit()
 
     def _cb_preview_image(self, msg: Image):
         try:

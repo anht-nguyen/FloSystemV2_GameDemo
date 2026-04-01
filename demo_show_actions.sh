@@ -7,11 +7,12 @@ set -euo pipefail
 #
 # Usage examples:
 #  
-#   /home/rrl/FloSystemV2_GameDemo/demo_show_actions.sh   --ports "/dev/ttyUSB0"   --side right   --repeat 2   --profile-accel 800 --profile-vel 400
+#   /home/rrl/FloSystemV2_GameDemo/demo_show_actions.sh   --ports "$FLO_MOTORS_DEVICE"   --side right   --repeat 2   --profile-accel 800 --profile-vel 400
 #   --p-gain 80 --d-gain 24
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PY_SCRIPT="${SCRIPT_DIR}/flo_humanoid/scripts/test/arm_poses_test.py"
+eval "$(python3 "${SCRIPT_DIR}/utility/device_paths.py" --format shell)"
 
 # Defaults
 PORTS=""
@@ -52,7 +53,7 @@ while [[ $# -gt 0 ]]; do
     --final-torque-off)
       FINAL_TORQUE_OFF=1; shift ;;
     -h|--help)
-      echo "Usage: $0 --ports \"/dev/ttyUSB0[/ /dev/ttyUSB1]\" --side <left|right|dual> [--repeat N] [--profile-accel A] [--profile-vel V] [--p-gain P] [--i-gain I] [--d-gain D] [--no-wait] [--final-torque-off]";
+      echo "Usage: $0 [--ports \"\$FLO_MOTORS_DEVICE\"] --side <left|right|dual> [--repeat N] [--profile-accel A] [--profile-vel V] [--p-gain P] [--i-gain I] [--d-gain D] [--no-wait] [--final-torque-off]";
       exit 0 ;;
     *)
       echo "[ERR] Unknown arg: $1" >&2; exit 2 ;;
@@ -60,8 +61,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "${PORTS}" ]]; then
-  echo "[ERR] --ports is required (e.g. --ports \"/dev/ttyUSB0\" or --ports \"/dev/ttyUSB0 /dev/ttyUSB1\")" >&2
-  exit 2
+  PORTS="${FLO_MOTORS_DEVICE}"
 fi
 
 if [[ ! -f "${PY_SCRIPT}" ]]; then
@@ -124,5 +124,3 @@ if [[ "${FINAL_TORQUE_OFF}" -eq 1 ]]; then
 fi
 
 echo "\n[DONE] Demo completed."
-
-

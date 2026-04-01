@@ -8,7 +8,7 @@ set -e
 
 source /opt/ros/noetic/setup.bash
 source /catkin_ws/devel/setup.bash
-/usr/bin/udevadm control --reload-rules && /usr/bin/udevadm trigger # ensure udev inside the container sees the camera
+eval "$(python3 /catkin_ws/src/utility/device_paths.py --format shell)"
 
 
 # 1) Start tmux session named “ros”

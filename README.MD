@@ -163,7 +163,8 @@ At startup
 
 - **USB Camera:**
   ```sh
-  rosrun usb_cam usb_cam_node _video_device:=/dev/video0
+  eval "$(python3 utility/device_paths.py --format shell)"
+  rosrun usb_cam usb_cam_node _video_device:=${FLO_CAMERA_DEVICE}
   rosrun flo_vision arm_hand_tracker_node.py _image:=/usb_cam/image_raw _preview:=true _pose:=wave
   ```
 

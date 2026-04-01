@@ -8,7 +8,7 @@ services:
         GID: ${GID}
     image: flo_system_v2_game_demo:latest
     container_name: flo_game
-    privileged: true              # required for /dev/video0 & audio
+    privileged: true              # required for hardware device passthrough & audio
     user: "${UID}:${GID}"
     environment:
       - DISPLAY=${DISPLAY}
@@ -19,6 +19,9 @@ services:
       - UDEV=1                    # still useful for hot-plugged devices
       - AWS_SHARED_CREDENTIALS_FILE=/home/hostuser/.aws/credentials
       - AWS_CONFIG_FILE=/home/hostuser/.aws/config
+      - FLO_CAMERA_DEVICE=/dev/flo_camera
+      - FLO_MOTORS_DEVICE=/dev/flo_motors
+      - FLO_FACE_DEVICE=/dev/flo_face
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix:ro
       # PulseWire socket + cookie (read-only is fine)
@@ -27,17 +30,18 @@ services:
       - ${XAUTHORITY}:/home/hostuser/.Xauthority:ro
       - ./certs/aws-credentials:/home/hostuser/.aws/credentials:ro
       - ./certs/aws-config:/home/hostuser/.aws/config:ro
-      - /dev/video0:/dev/video0           # pass webcam
       # - /dev/snd:/dev/snd                 # pass audio
     devices:
-      - /dev/video0:/dev/video0           # explicit webcam access
+      - ${FLO_CAMERA_SOURCE:-/dev/video0}:/dev/flo_camera
+      - ${FLO_MOTORS_SOURCE:-/dev/ttyUSB0}:/dev/flo_motors
+      - ${FLO_FACE_SOURCE:-/dev/ttyACM0}:/dev/flo_face
       - /dev/snd:/dev/snd                 # ALSA devices
-      - /dev/ttyACM0:/dev/ttyACM0         # keep serial (Arduino, etc.)
     working_dir: /catkin_ws
     # ipc: host
     group_add:
       - audio
-      - dialout  
+      - dialout
+      - video
     tty: true
     stdin_open: true
     entrypoint:

@@ -18,15 +18,15 @@ Notes:
 Examples:
   Right arm waving 3 cycles (SRDF sequence R_wave_start/R_wave_end):
     python3 arm_poses_test.py \
-      --ports /dev/ttyUSB0 \
+      --ports /dev/flo_motors \
       --arm right \
       --pose wave \
       --repeat 3
 
   Use an SRDF pose name directly (single move):
-    python3 arm_poses_test.py --ports /dev/ttyUSB0 --pose R_raise --arm right
+    python3 arm_poses_test.py --ports /dev/flo_motors --pose R_raise --arm right
 
-  Dual ports, left/right on USB0/USB1:
+  Dual ports, left/right on the legacy USB assignments:
     python3 arm_poses_test.py \
       --ports /dev/ttyUSB0 /dev/ttyUSB1 \
       --arm left --pose L_reach_side
@@ -34,7 +34,7 @@ Examples:
 """
 CMD EXAMPLE:
 python3 /home/rrl/FloSystemV2_GameDemo/flo_humanoid/scripts/test/arm_poses_test.py \
-  --ports /dev/ttyUSB0 \
+  --ports /dev/flo_motors \
   --arm left \
   --pose swing_lateral \
   --repeat 5 \
@@ -46,6 +46,7 @@ python3 /home/rrl/FloSystemV2_GameDemo/flo_humanoid/scripts/test/arm_poses_test.
 
 import argparse
 import math
+import sys
 import time
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -229,13 +230,18 @@ def apply_pose(packet: PacketHandler,
 def main():
     # Project root directory: .../FloSystemV2_GameDemo
     repo_root = Path(__file__).resolve().parents[3]
+    sys.path.insert(0, str(repo_root / 'utility'))
+    from device_paths import get_device_paths
+
+    device_paths = get_device_paths()
     # Configuration files are in the package: flo_humanoid/config and flo_core/config
     default_ids = repo_root / 'flo_humanoid' / 'config' / 'dynamixel_ids.yaml'
     default_offsets = repo_root / 'flo_humanoid' / 'config' / 'dynamixel_offsets.yaml'
     default_srdf = repo_root / 'flo_core' / 'config' / 'flov2_robot_description.srdf'
+    default_ports = [device_paths['motors']]
 
     ap = argparse.ArgumentParser(description="Standalone pose testing (Dynamixel SDK)")
-    ap.add_argument('--ports', nargs='+', required=True, help='Serial device (1 or 2): /dev/ttyUSB0 [/dev/ttyUSB1]')
+    ap.add_argument('--ports', nargs='+', default=default_ports, help='Serial device list. Defaults to resolved FLO motor device paths.')
     ap.add_argument('--baudrate', type=int, default=1000000)
     ap.add_argument('--pose', required=True, help='Pose name or high-level action alias: wave/raise/reach_side/... or SRDF group_state name')
     ap.add_argument('--arm', choices=['left','right','dual'], default='right', help='Select action arm (for high-level aliases)')
@@ -332,4 +338,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

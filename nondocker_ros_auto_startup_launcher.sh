@@ -3,6 +3,9 @@ set -e
 
 # Auto startup script for ROS on ubuntu 20 machine (non-docker) in a tmux session
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+eval "$(python3 "$SCRIPT_DIR/utility/device_paths.py" --format shell)"
+
 # 1) Start tmux session named “ros”
 tmux new-session -d -s ros #'roscore'
 
@@ -23,4 +26,3 @@ sleep 2
 tmux new-window -t ros:6 -n face 'roslaunch flo_face flo_face_launcher.launch'
 sleep 2
 tmux new-window -t ros:7 -n game_runner 'roslaunch flo_core simonsays_launcher_prod.launch'
-

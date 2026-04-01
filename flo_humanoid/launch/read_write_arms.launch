@@ -1,8 +1,7 @@
 <!-- flo_humanoid/launch/read_write_arms.launch -->
 <launch>
   <!--   user‑tunable arguments  -->
-  <arg name="port_left"  default="/dev/ttyUSB0"/>
-  <arg name="port_right" default="/dev/ttyUSB1"/>
+  <arg name="port"       default="$(optenv FLO_MOTORS_DEVICE /dev/ttyUSB0)"/>
   <arg name="baudrate"   default="1000000"/>
 
   <!--   parameters on the server  -->
@@ -10,8 +9,7 @@
   <rosparam file="$(find flo_humanoid)/config/dynamixel_ids.yaml"/>
   <rosparam file="$(find flo_humanoid)/config/dynamixel_offsets.yaml"/>
 
-  <param name="port_left"  value="$(arg port_left)"/>
-  <param name="port_right" value="$(arg port_right)"/>
+  <param name="port"       value="$(arg port)"/>
   <param name="baudrate"   value="$(arg baudrate)" type="int"/>
 
   <!--   driver node itself  -->

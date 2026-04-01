@@ -72,6 +72,7 @@ export DISPLAY=:0
 export XAUTHORITY="$HOME/.Xauthority"
 export XDG_RUNTIME_DIR="/run/user/$(id -u)"
 export PULSE_SERVER="unix:$XDG_RUNTIME_DIR/pulse/native"
+eval "$(python3 "$CLONE_DIR/utility/device_paths.py" --format shell)"
 
 # Build and run in detached mode
 /usr/bin/docker compose up --build -d || {

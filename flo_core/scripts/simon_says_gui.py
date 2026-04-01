@@ -135,7 +135,7 @@ class SimonGUI(QWidget):
 
     def _build_ui(self):
         self.setWindowTitle("Dual-Arm Simon Says")
-        self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint)
+        self.setWindowFlags(Qt.Window)
         self.setStyleSheet(
             """
             QWidget {

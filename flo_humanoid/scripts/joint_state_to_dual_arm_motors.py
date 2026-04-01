@@ -34,15 +34,16 @@ class JointStateToDxlBridge:
         js = dict(zip(msg.name, msg.position))
 
         try:
+            l1 = math.degrees(js['l1']) + self.offsets['l1']
+            l2 = math.degrees(js['l2']) + self.offsets['l2']
+            l3 = math.degrees(js['l3']) + self.offsets['l3']
+            l4 = math.degrees(js['l4']) + self.offsets['l4'] 
+
             r1 = math.degrees(js['r1']) + self.offsets['r1']
             r2 = math.degrees(js['r2']) + self.offsets['r2']
             r3 = math.degrees(js['r3']) + self.offsets['r3']
             r4 = - math.degrees(js['r4']) + self.offsets['r4']
 
-            l1 = math.degrees(js['l1']) + self.offsets['l1']
-            l2 = math.degrees(js['l2']) + self.offsets['l2']
-            l3 = math.degrees(js['l3']) + self.offsets['l3']
-            l4 = math.degrees(js['l4']) + self.offsets['l4'] 
         except KeyError as e:
             rospy.logwarn(f"Joint '{e.args[0]}' not found in /joint_states, skipping.")
             return

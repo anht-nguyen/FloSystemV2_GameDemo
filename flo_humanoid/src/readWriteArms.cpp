@@ -44,10 +44,10 @@ using namespace dynamixel;
 #define BAUDRATE             1000000            // Default Baudrate of DYNAMIXEL X series
 //set up fixed mount point for the device, this is the same as the one set in the udev rules file.
 #define DEVICE_NAME          "/dev/ttyUSB0"  // [Linux] To find assigned port, use "$ ls /dev/ttyUSB*" command
-const uint32_t PROFILE_ACCEL      = 500;  // ≈107 k rev/min²
-const uint32_t PROFILE_VEL        = 10000;  // ≈45.8 rev/min
-const uint32_t P_GAIN_XM          = 144;  // Position P Gain
-const uint32_t D_GAIN_XM          = 24;    // Position I Gain
+const uint32_t PROFILE_ACCEL      = 1000;  // ≈107 k rev/min²
+const uint32_t PROFILE_VEL        = 400;  // ≈45.8 rev/min
+const uint32_t P_GAIN_XM          = 81;  // Position P Gain
+const uint32_t D_GAIN_XM          = 18;    // Position I Gain
 const uint32_t P_GAIN_XL          = 81;     // Position D Gain
 const uint32_t D_GAIN_XL          = 18;     // Position D Gain
 // ensure that DXL1_ID, DXL2_ID, DXL3_ID, DXL4_ID are connected to the device labeled DEVICE_NAME1
@@ -92,8 +92,7 @@ bool getArmsJointPositionsCallback(
   }
   if (dxl_addparam_result != true) {
     ROS_ERROR("Failed to addparam to groupBulkRead for Dynamixel ID: %d", req.id1);
-    return 0;int32_t position1 = 0;
-  int32_t position2 = 0;
+    return 0;
   }
 
   if (req.item2 == "position") {
@@ -198,8 +197,8 @@ bool getArmsJointPositionsCallback(
   uint32_t value8 = 0;
   // uint32_t value9 = 0;
   // uint32_t value10 = 0;
-  const uint32_t PROFILE_ACCEL      = 500;  // ≈107 k rev/min²
-  const uint32_t PROFILE_VEL        = 200;  // ≈45.8 rev/min
+  // const uint32_t PROFILE_ACCEL      = 500;  // ≈107 k rev/min²
+  // const uint32_t PROFILE_VEL        = 200;  // ≈45.8 rev/min
   dxl_comm_result = groupBulkRead.txRxPacket(); 
 
   if (dxl_comm_result == COMM_SUCCESS) {

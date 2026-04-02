@@ -121,6 +121,20 @@ class CalibrationStage:
             )
             self._speech_thread.start()
 
+    def _wait_for_speech(self):
+        while not rospy.is_shutdown():
+            with self._speech_lock:
+                speech_thread = self._speech_thread
+                pending_speech = self._pending_speech
+            if speech_thread is None and pending_speech is None:
+                return
+            if self._cancel_event and self._cancel_event.is_set():
+                return
+            if speech_thread is not None:
+                speech_thread.join(timeout=0.1)
+            else:
+                rospy.sleep(0.05)
+
     # ------------------------------------------------------------------
     def _status_cb(self, msg: CalibStatus):
         self._ready = msg.ready
@@ -159,6 +173,7 @@ class CalibrationStage:
             if stage == 2 and self._ready and self._hint == "arm_up":
                 # Success!
                 self._speak_async("Perfect! I can see your whole upper body.")
+                self._wait_for_speech()
                 self._cmd_pub.publish(False)
                 return True
 

@@ -600,6 +600,7 @@ def calib_check(kps, img_h, img_w, margin=40):
     """
     
     ANGLE_TH  = 145           # tweak if too strict / lenient
+    MIN_BODY_SPAN_RATIO = 0.45
     try:
         l_ang = _angle(kps["left_hip"],  kps["left_shoulder"],  kps["left_elbow"])
         r_ang = _angle(kps["right_hip"], kps["right_shoulder"], kps["right_elbow"])
@@ -620,17 +621,27 @@ def calib_check(kps, img_h, img_w, margin=40):
     bottom_y = max(hips_y)
     left_x   = min(kps[p][0] for p in ["left_hip","right_hip","left_wrist","right_wrist"])
     right_x  = max(kps[p][0] for p in ["left_hip","right_hip","left_wrist","right_wrist"])
-
-    if (top_y    > margin and
+    body_span_y = bottom_y - top_y
+    min_body_span_px = max(int(img_h * MIN_BODY_SPAN_RATIO), margin * 4)
+    in_frame = (
+        top_y > margin and
         bottom_y < img_h - margin and
-        left_x   > margin and
-        right_x  < img_w - margin and 
-        hint == "arm_up"):
+        left_x > margin and
+        right_x < img_w - margin
+    )
+
+    if in_frame and body_span_y >= min_body_span_px and hint == "arm_up":
         return True, hint       # fully ready
 
-    # 4) Otherwise emit the appropriate framing hint
+    # 4) Otherwise emit the appropriate framing hint.
+    # If the full pose is visible but still too small, the player is too far.
+    if in_frame and body_span_y < min_body_span_px:
+        return False, "forward"
+
+    # A subject that clips either the bottom or the raised-arm top of frame
+    # is too large in view, so both cases should ask them to step back.
     if bottom_y >= img_h - margin:    hint = "back"
-    elif top_y <= margin:             hint = "forward"
+    elif top_y <= margin:             hint = "back"
     elif left_x <= margin:            hint = "right"
     elif right_x >= img_w - margin:   hint = "left"
     return False, hint

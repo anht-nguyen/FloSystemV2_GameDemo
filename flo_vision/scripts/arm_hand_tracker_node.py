@@ -261,6 +261,13 @@ class ArmHandTrackerNode:
                 cv2.putText(image_bgr, f"CALIB: {txt}", (20,40),
                             cv2.FONT_HERSHEY_SIMPLEX, 1.2, color, 3)
                 self.preview_frame = image_bgr
+                if self.publish_preview:
+                    try:
+                        self.pub_preview_image.publish(
+                            self.bridge.cv2_to_imgmsg(image_bgr, encoding="bgr8")
+                        )
+                    except CvBridgeError as e:
+                        rospy.logwarn(f"Failed to publish calibration preview image: {e}")
 
             # skip normal logic until framing is OK
             if not ready:

@@ -30,6 +30,7 @@ class GameState(str, Enum):
     INTRO = "Intro"
     INTRO_WAIT = "Intro_Wait"
     CALIBRATING = "Calibrating"
+    READY = "Ready"
     IN_GAME = "InGame"
     PAUSED = "Paused"
     GAME_OVER = "GameOver"
@@ -76,13 +77,16 @@ class CameraView(QWidget):
 class SimonGUI(QWidget):
     """Main GUI widget driven by a Qt StateMachine."""
 
-    startClicked = pyqtSignal()
-    continueClicked = pyqtSignal()
+    instructionsClicked = pyqtSignal()
+    calibrateClicked = pyqtSignal()
+    startGameClicked = pyqtSignal()
     pauseClicked = pyqtSignal()
+    resumeClicked = pyqtSignal()
     stopClicked = pyqtSignal()
     restartClicked = pyqtSignal()
     quitClicked = pyqtSignal()
     rulesReceived = pyqtSignal()
+    calibrationFinished = pyqtSignal()
     cameraFrameReady = pyqtSignal(QImage)
     scoreUpdated = pyqtSignal(int)
     promptUpdated = pyqtSignal(str)
@@ -254,35 +258,45 @@ class SimonGUI(QWidget):
         self.lbl_status.setObjectName("metric")
         control_layout.addWidget(self.lbl_status)
 
-        self.btn_start = QPushButton("Start")
-        self.btn_continue = QPushButton("Continue")
+        self.btn_instructions = QPushButton("Read Instructions")
+        self.btn_calibrate = QPushButton("Calibrate Camera")
+        self.btn_start_game = QPushButton("Start Game")
         self.btn_pause = QPushButton("Pause")
+        self.btn_resume = QPushButton("Resume")
         self.btn_stop = QPushButton("Stop")
-        self.btn_restart = QPushButton("Restart")
+        self.btn_restart = QPushButton("Restart Session")
         self.btn_quit = QPushButton("Quit")
         self.btn_stop.setObjectName("danger")
         self.btn_quit.setObjectName("secondary")
 
         self._cmd_map = {
-            self.btn_start: ("start", self.startClicked),
-            self.btn_continue: ("continue", self.continueClicked),
+            self.btn_instructions: ("read_instructions", self.instructionsClicked),
+            self.btn_calibrate: ("calibrate_camera", self.calibrateClicked),
+            self.btn_start_game: ("start_game", self.startGameClicked),
             self.btn_pause: ("pause", self.pauseClicked),
+            self.btn_resume: ("resume", self.resumeClicked),
             self.btn_stop: ("stop", self.stopClicked),
             self.btn_restart: ("restart", self.restartClicked),
             self.btn_quit: ("quit", self.quitClicked),
         }
 
         row1 = QHBoxLayout()
-        for button in (self.btn_start, self.btn_continue, self.btn_pause):
+        for button in (self.btn_instructions, self.btn_calibrate, self.btn_start_game):
             button.clicked.connect(self._on_button)
             row1.addWidget(button)
         control_layout.addLayout(row1)
 
         row2 = QHBoxLayout()
-        for button in (self.btn_stop, self.btn_restart, self.btn_quit):
+        for button in (self.btn_pause, self.btn_resume, self.btn_stop):
             button.clicked.connect(self._on_button)
             row2.addWidget(button)
         control_layout.addLayout(row2)
+
+        row3 = QHBoxLayout()
+        for button in (self.btn_restart, self.btn_quit):
+            button.clicked.connect(self._on_button)
+            row3.addWidget(button)
+        control_layout.addLayout(row3)
         control_layout.addStretch(1)
 
         root.addWidget(control_panel, 1)
@@ -295,6 +309,7 @@ class SimonGUI(QWidget):
         self.s_intro_wait = QState()
         self.s_in_game = QState()
         self.s_calibrating = QState()
+        self.s_ready = QState()
         self.s_paused = QState()
         self.s_game_over = QState()
         self.s_terminated = QState()
@@ -303,21 +318,29 @@ class SimonGUI(QWidget):
         self.machine.addState(self.s_intro)
         self.machine.addState(self.s_intro_wait)
         self.machine.addState(self.s_calibrating)
+        self.machine.addState(self.s_ready)
         self.machine.addState(self.s_in_game)
         self.machine.addState(self.s_paused)
         self.machine.addState(self.s_game_over)
         self.machine.addState(self.s_terminated)
         self.machine.setInitialState(self.s_idle)
 
-        self.s_idle.addTransition(self.startClicked, self.s_intro)
+        self.s_idle.addTransition(self.instructionsClicked, self.s_intro)
+        self.s_idle.addTransition(self.calibrateClicked, self.s_calibrating)
+        self.s_idle.addTransition(self.startGameClicked, self.s_in_game)
         self.s_intro.addTransition(self.rulesReceived, self.s_intro_wait)
-        self.s_intro_wait.addTransition(self.continueClicked, self.s_calibrating)
-        self.s_intro_wait.addTransition(self.stopClicked, self.s_game_over)
-        self.s_calibrating.addTransition(self.continueClicked, self.s_in_game)
-        self.s_calibrating.addTransition(self.stopClicked, self.s_game_over)
+        self.s_intro_wait.addTransition(self.instructionsClicked, self.s_intro)
+        self.s_intro_wait.addTransition(self.calibrateClicked, self.s_calibrating)
+        self.s_intro_wait.addTransition(self.startGameClicked, self.s_in_game)
+        self.s_intro_wait.addTransition(self.stopClicked, self.s_ready)
+        self.s_calibrating.addTransition(self.calibrationFinished, self.s_ready)
+        self.s_calibrating.addTransition(self.stopClicked, self.s_ready)
+        self.s_ready.addTransition(self.instructionsClicked, self.s_intro)
+        self.s_ready.addTransition(self.calibrateClicked, self.s_calibrating)
+        self.s_ready.addTransition(self.startGameClicked, self.s_in_game)
         self.s_in_game.addTransition(self.pauseClicked, self.s_paused)
         self.s_in_game.addTransition(self.stopClicked, self.s_game_over)
-        self.s_paused.addTransition(self.continueClicked, self.s_in_game)
+        self.s_paused.addTransition(self.resumeClicked, self.s_in_game)
         self.s_paused.addTransition(self.stopClicked, self.s_game_over)
         self.s_game_over.addTransition(self.restartClicked, self.s_idle)
 
@@ -325,6 +348,7 @@ class SimonGUI(QWidget):
             self.s_intro,
             self.s_intro_wait,
             self.s_calibrating,
+            self.s_ready,
             self.s_in_game,
             self.s_paused,
         ):
@@ -335,6 +359,7 @@ class SimonGUI(QWidget):
             self.s_intro,
             self.s_intro_wait,
             self.s_calibrating,
+            self.s_ready,
             self.s_in_game,
             self.s_paused,
             self.s_game_over,
@@ -345,6 +370,7 @@ class SimonGUI(QWidget):
         self.s_intro.entered.connect(lambda: self._on_enter_state(GameState.INTRO))
         self.s_intro_wait.entered.connect(lambda: self._on_enter_state(GameState.INTRO_WAIT))
         self.s_calibrating.entered.connect(lambda: self._on_enter_state(GameState.CALIBRATING))
+        self.s_ready.entered.connect(lambda: self._on_enter_state(GameState.READY))
         self.s_in_game.entered.connect(lambda: self._on_enter_state(GameState.IN_GAME))
         self.s_paused.entered.connect(lambda: self._on_enter_state(GameState.PAUSED))
         self.s_game_over.entered.connect(lambda: self._on_enter_state(GameState.GAME_OVER))
@@ -357,7 +383,7 @@ class SimonGUI(QWidget):
         cmd, signal = self._cmd_map[btn]
         self.cmd_pub.publish(cmd)
         rospy.loginfo(f"[GUI] Sent command: {cmd}")
-        if cmd == "start":
+        if cmd in ("read_instructions", "calibrate_camera", "start_game", "restart"):
             self.ready_for_start = False
             self._update_buttons()
         signal.emit()
@@ -389,7 +415,9 @@ class SimonGUI(QWidget):
             self.lbl_score.setText("Score: 0")
             self.lbl_prompt.setText("Welcome to Simon Says game with Flo robot!\n")
         elif new_state == GameState.IDLE:
-            self.lbl_prompt.setText("Press Start to begin\n")
+            self.lbl_prompt.setText("Choose a setup step, or start the game directly.\n")
+        elif new_state == GameState.READY:
+            self.lbl_prompt.setText("Setup complete. Start the game, recalibrate, or replay instructions.\n")
         elif new_state == GameState.GAME_OVER:
             self.ticker.stop()
             self.remaining_time = self.turn_timeout
@@ -425,11 +453,9 @@ class SimonGUI(QWidget):
             self.rulesReceived.emit()
 
         if self.current_state == GameState.CALIBRATING:
-            if text.startswith("Great"):
-                self.calib_ready = False
-            elif text.startswith("Perfect") or text.startswith("Calibration complete"):
+            if text.startswith("Calibration complete"):
                 self.calib_ready = True
-                self._update_buttons()
+                self.calibrationFinished.emit()
 
     def _apply_turn_update(self, turn_id: int):
         rospy.loginfo(f"[GUI] _cb_turn: ticker active? {self.ticker.isActive()}")
@@ -440,7 +466,8 @@ class SimonGUI(QWidget):
             self.lbl_timer.setText(self._fmt_time(self.remaining_time))
 
     def _apply_status_update(self, status: str):
-        if "Waiting for Start command" in status:
+        self.lbl_status.setText(f"Status: {status}")
+        if "Waiting for Start command" in status or "Ready for setup or game start" in status:
             self.ready_for_start = True
             self.calib_ready = False
             self._update_buttons()
@@ -482,9 +509,11 @@ class SimonGUI(QWidget):
 
     def _update_buttons(self):
         for button in (
-            self.btn_start,
-            self.btn_continue,
+            self.btn_instructions,
+            self.btn_calibrate,
+            self.btn_start_game,
             self.btn_pause,
+            self.btn_resume,
             self.btn_stop,
             self.btn_restart,
             self.btn_quit,
@@ -492,22 +521,22 @@ class SimonGUI(QWidget):
             button.setEnabled(False)
 
         state = self.current_state
-        if state == GameState.IDLE and self.ready_for_start:
-            self.btn_start.setEnabled(True)
-        elif state == GameState.INTRO_WAIT:
-            self.btn_continue.setEnabled(True)
+        if state in (GameState.IDLE, GameState.INTRO_WAIT, GameState.READY) and self.ready_for_start:
+            self.btn_instructions.setEnabled(True)
+            self.btn_calibrate.setEnabled(True)
+            self.btn_start_game.setEnabled(True)
+            if state == GameState.INTRO_WAIT:
+                self.btn_stop.setEnabled(True)
+        elif state == GameState.CALIBRATING:
             self.btn_stop.setEnabled(True)
         elif state == GameState.IN_GAME:
             self.btn_pause.setEnabled(True)
             self.btn_stop.setEnabled(True)
         elif state == GameState.PAUSED:
-            self.btn_continue.setEnabled(True)
+            self.btn_resume.setEnabled(True)
             self.btn_stop.setEnabled(True)
         elif state == GameState.GAME_OVER:
             self.btn_restart.setEnabled(True)
-        elif state == GameState.CALIBRATING:
-            self.btn_stop.setEnabled(True)
-            self.btn_continue.setEnabled(self.calib_ready)
 
         self.btn_quit.setEnabled(True)
 

@@ -197,6 +197,100 @@ class CalibrationStage:
         return False
 
 
+class StaticPoseStartStage:
+    """
+    Runs a short static-pose instruction, then verifies the player holds it
+    before the actual game starts.
+    """
+    def __init__(
+        self,
+        tts,
+        prompt_pub,
+        success_threshold: float,
+        hold_seconds: float,
+        cancel_event: threading.Event | None = None,
+    ):
+        self._tts = tts
+        self._prompt_pub = prompt_pub
+        self._success_threshold = success_threshold
+        self._hold_seconds = hold_seconds
+        self._cancel_event = cancel_event
+        self._latest_match = False
+        self._match_started_at = None
+        self._sub = rospy.Subscriber(
+            "/arm_hand_tracker/pose_score", PoseScore, self._pose_cb
+        )
+        self._pose_cmd_pub = rospy.Publisher(
+            "/arm_hand_tracker/pose_command", String, queue_size=1, latch=True
+        )
+
+    def _pose_cb(self, msg: PoseScore):
+        self._latest_match = (
+            msg.matched and msg.similarity >= self._success_threshold
+        )
+
+    def _run_instruction_step(self) -> bool:
+        self._prompt_pub.publish(
+            "Before we start, your static pose is both arms straight and relaxed by your sides."
+        )
+        self._tts.speak(
+            "Before we start, your static pose is both arms straight and relaxed by your sides."
+        )
+        if self._cancel_event and self._cancel_event.is_set():
+            return False
+        rospy.sleep(0.5)
+        return not (self._cancel_event and self._cancel_event.is_set())
+
+    def _run_pose_check_step(self) -> bool:
+        self._latest_match = False
+        self._match_started_at = None
+        self._pose_cmd_pub.publish(String(data="static"))
+        self._prompt_pub.publish(
+            "Show me your static pose now and hold it still for a moment."
+        )
+        self._tts.speak(
+            "Show me your static pose now and hold it still for a moment."
+        )
+
+        rate = rospy.Rate(20)
+        reminded_at = rospy.Time.now()
+
+        while not rospy.is_shutdown():
+            if self._cancel_event and self._cancel_event.is_set():
+                return False
+
+            now = rospy.Time.now()
+            if self._latest_match:
+                if self._match_started_at is None:
+                    self._match_started_at = now
+                if (now - self._match_started_at).to_sec() >= self._hold_seconds:
+                    self._prompt_pub.publish("Static pose looks good. Starting the game.")
+                    self._tts.speak("Static pose looks good. Starting the game.")
+                    return True
+            else:
+                self._match_started_at = None
+                if (now - reminded_at).to_sec() >= 4.0:
+                    self._prompt_pub.publish(
+                        "Please put both arms straight by your sides to make your static pose."
+                    )
+                    self._tts.speak(
+                        "Please put both arms straight by your sides to make your static pose."
+                    )
+                    reminded_at = now
+
+            rate.sleep()
+
+        return False
+
+    def run(self) -> bool:
+        try:
+            if not self._run_instruction_step():
+                return False
+            return self._run_pose_check_step()
+        finally:
+            self._sub.unregister()
+
+
 class Announce(smach.State):
     def __init__(self, prompt_pub: rospy.Publisher, turn_pub: rospy.Publisher, tts_client):
         super().__init__(
@@ -755,7 +849,8 @@ class GameController:
             "simon_ratio": rospy.get_param("~simon_ratio"),
             "total_rounds": rospy.get_param("~total_rounds"),
             "success_threshold": rospy.get_param("~threshold"),
-            "static_threshold": rospy.get_param("~static_threshold")
+            "static_threshold": rospy.get_param("~static_threshold"),
+            "static_start_hold_seconds": rospy.get_param("~static_start_hold_seconds", 1.5),
         }
 
         # ── status publisher so GUI can enable “Start” when we’re ready ──
@@ -845,13 +940,35 @@ class GameController:
     def _start_game(self):
         if self.running or self.intro_in_progress:
             return
-        self.running = True
-        self.intro_done = True
-        self._publish_ui_state("in_game")
-        self.status_pub.publish("Game running.")
-        self.sis.start()
-        self.game_thread = threading.Thread(target=self.run_game, daemon=True)
-        self.game_thread.start()
+        self.intro_in_progress = True
+        threading.Thread(target=self._run_start_game_sequence, daemon=True).start()
+
+    def _run_start_game_sequence(self):
+        try:
+            self._publish_ui_state("setup_static_pose")
+            self.status_pub.publish("Checking static pose before game start.")
+            self.pre_game_cancel.clear()
+
+            static_stage = StaticPoseStartStage(
+                self.tts,
+                self.prompt_pub,
+                self.params["static_threshold"],
+                self.params["static_start_hold_seconds"],
+                self.pre_game_cancel,
+            )
+            if not static_stage.run():
+                self._set_ready_state("Start canceled. Choose the next step.")
+                return
+
+            self.running = True
+            self.intro_done = True
+            self._publish_ui_state("in_game")
+            self.status_pub.publish("Game running.")
+            self.sis.start()
+            self.game_thread = threading.Thread(target=self.run_game, daemon=True)
+            self.game_thread.start()
+        finally:
+            self.intro_in_progress = False
 
     def _run_instruction_sequence(self) -> bool:
         self._publish_ui_state("setup_instructions")

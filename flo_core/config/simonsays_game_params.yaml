@@ -19,3 +19,4 @@ total_rounds:          5         # stop after 15 dual-arm turns
 threshold:             0.1        # threshold for pose similarity
 inter_turn_delay:      1.5        # seconds to wait before next turn
 static_threshold:      0.90      # threshold for static pose similarity
+static_start_hold_seconds: 1.5   # seconds to hold static pose before the game begins

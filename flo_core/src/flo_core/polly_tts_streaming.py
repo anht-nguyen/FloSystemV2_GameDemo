@@ -1,5 +1,6 @@
 import boto3
 import pyaudio
+import threading
 
 class PollyTTSStream:
     """
@@ -25,29 +26,31 @@ class PollyTTSStream:
             output=True,
             frames_per_buffer=4096  # Buffer size for streaming
         )
+        self._speak_lock = threading.Lock()
 
     def speak(self, text: str):
         """
         Stream synthesized speech for `text` directly to audio output.
         """
-        # Request raw PCM from AWS Polly
-        response = self.polly.synthesize_speech(
-            Text=text,
-            VoiceId=self.voice_id,
-            OutputFormat='pcm',
-            SampleRate=str(self.sample_rate)
-        )
-        # Read and play in chunks
-        if 'AudioStream' in response:
-            stream_body = response['AudioStream']
-            chunk_size = 1024  # bytes
-            while True:
-                data = stream_body.read(chunk_size)
-                if not data:
-                    break
-                self.stream.write(data)
-        else:
-            raise RuntimeError("No AudioStream in Polly response")
+        with self._speak_lock:
+            # Request raw PCM from AWS Polly
+            response = self.polly.synthesize_speech(
+                Text=text,
+                VoiceId=self.voice_id,
+                OutputFormat='pcm',
+                SampleRate=str(self.sample_rate)
+            )
+            # Read and play in chunks
+            if 'AudioStream' in response:
+                stream_body = response['AudioStream']
+                chunk_size = 1024  # bytes
+                while True:
+                    data = stream_body.read(chunk_size)
+                    if not data:
+                        break
+                    self.stream.write(data)
+            else:
+                raise RuntimeError("No AudioStream in Polly response")
 
     def __del__(self):
         # Clean up PyAudio resources

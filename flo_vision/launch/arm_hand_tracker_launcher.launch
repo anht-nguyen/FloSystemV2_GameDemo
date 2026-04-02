@@ -4,6 +4,8 @@
     <param name="image"   value="/usb_cam/image_raw"/>
     <param name="pose"    value="static"/>
     <param name="preview" value="true"/>
+    <param name="preview_window" value="false"/>
+    <param name="publish_preview" value="true"/>
     <param name="calib_margin_px" value="40"/>
   </node>
 </launch>

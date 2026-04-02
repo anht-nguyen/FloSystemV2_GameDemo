@@ -1,79 +1,105 @@
-# ---------- Base OS & ROS ----------
 FROM ros:noetic-ros-core
-ENV DEBIAN_FRONTEND=noninteractive
 
-# ---------- Core desktop + MoveIt + common runtime ----------
-RUN apt-get update && apt-get upgrade -y && \
-    apt-get install -y --no-install-recommends \
-        ros-noetic-desktop \
-        ros-noetic-moveit \
-        ros-noetic-sound-play \
-        ros-noetic-dynamixel-sdk ros-noetic-dynamixel-sdk-examples \
-        ros-noetic-controller-manager ros-noetic-joint-state-controller \
-        ros-noetic-joint-state-publisher ros-noetic-robot-state-publisher \
-        ros-noetic-gazebo-ros-pkgs ros-noetic-gazebo-ros-control \
-        ros-noetic-ros-control ros-noetic-ros-controllers \
-        ros-noetic-rosbag \
-        ros-noetic-smach ros-noetic-smach-ros ros-noetic-smach-viewer \
-        ros-noetic-rosbridge-server \
-        # --- Vision ---
-        ros-noetic-usb-cam ros-noetic-cv-bridge ros-noetic-image-transport \
-        ros-noetic-sensor-msgs ros-noetic-std-msgs \
-        # --- Utilities ---
-        python3-pip python3-pyqt5 alsa-utils portaudio19-dev \
-        build-essential git python3-rosdep python3-catkin-tools \
-        python3-matplotlib python3-numpy tmux x11-apps htop python3-protobuf\
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
-# ---------- Python packages ----------
-RUN pip3 install --default-timeout=100 \
-        numpy scipy matplotlib boto3 pyaudio opencv-python absl-py && \
-    pip3 install --no-deps mediapipe==0.10.11 opencv-contrib-python
+ARG ROS_DISTRO=noetic
+ARG UID=1000
+ARG GID=1000
 
-# ---------- Extra ROS packages ----------
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        ros-noetic-image-geometry \
-        ros-noetic-rgbd-launch \
-        udev \
-        ros-noetic-rosserial-arduino ros-noetic-rosserial-client \
-        ros-noetic-rosserial-server ros-noetic-rosserial-python \
-        ros-noetic-rosserial-msgs \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+ENV DEBIAN_FRONTEND=noninteractive \
+    ROS_DISTRO=${ROS_DISTRO} \
+    CATKIN_WS=/catkin_ws \
+    AWS_DEFAULT_REGION=us-east-1
 
-# ---------- AWS CLI ----------
-RUN pip3 install awscli
-RUN mkdir -p /root/.aws
-COPY certs/aws-credentials /root/.aws/credentials
-COPY certs/aws-config       /root/.aws/config
-RUN chmod 600 /root/.aws/*
-ENV AWS_DEFAULT_REGION=us-east-1    
+WORKDIR ${CATKIN_WS}
 
-# ---------- Install dependencies ----------
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
+# System, ROS, audio, and build dependencies are installed together to keep the
+# image setup predictable and reduce repeated apt metadata downloads.
+RUN set -eux; \
+    apt-get update; \
+    apt-get upgrade -y; \
+    apt-get install -y \
+        alsa-utils \
+        build-essential \
+        git \
+        htop \
+        libasound2 \
+        libasound2-plugins \
+        libpulse0 \
+        nano \
+        portaudio19-dev \
+        pulseaudio-utils \
+        python3-catkin-tools \
+        python3-matplotlib \
+        python3-numpy \
+        python3-pip \
+        python3-protobuf \
+        python3-pyqt5 \
+        python3-rosdep \
         python3-tk \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
-
-# ---------- Install PulseAudio client libraries ----------
-# audio client libraries only – NOT the daemon
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        libpulse0 alsa-utils libasound2 libasound2-plugins \
-        pulseaudio-utils && \
+        ros-${ROS_DISTRO}-controller-manager \
+        ros-${ROS_DISTRO}-cv-bridge \
+        ros-${ROS_DISTRO}-desktop \
+        ros-${ROS_DISTRO}-dynamixel-sdk \
+        ros-${ROS_DISTRO}-dynamixel-sdk-examples \
+        ros-${ROS_DISTRO}-gazebo-ros-control \
+        ros-${ROS_DISTRO}-gazebo-ros-pkgs \
+        ros-${ROS_DISTRO}-image-geometry \
+        ros-${ROS_DISTRO}-image-transport \
+        ros-${ROS_DISTRO}-joint-state-controller \
+        ros-${ROS_DISTRO}-joint-state-publisher \
+        ros-${ROS_DISTRO}-moveit \
+        ros-${ROS_DISTRO}-rgbd-launch \
+        ros-${ROS_DISTRO}-robot-state-publisher \
+        ros-${ROS_DISTRO}-ros-control \
+        ros-${ROS_DISTRO}-ros-controllers \
+        ros-${ROS_DISTRO}-rosbag \
+        ros-${ROS_DISTRO}-rosbridge-server \
+        ros-${ROS_DISTRO}-rosserial-arduino \
+        ros-${ROS_DISTRO}-rosserial-client \
+        ros-${ROS_DISTRO}-rosserial-msgs \
+        ros-${ROS_DISTRO}-rosserial-python \
+        ros-${ROS_DISTRO}-rosserial-server \
+        ros-${ROS_DISTRO}-sensor-msgs \
+        ros-${ROS_DISTRO}-smach \
+        ros-${ROS_DISTRO}-smach-ros \
+        ros-${ROS_DISTRO}-smach-viewer \
+        ros-${ROS_DISTRO}-sound-play \
+        ros-${ROS_DISTRO}-std-msgs \
+        ros-${ROS_DISTRO}-usb-cam \
+        tmux \
+        udev \
+        x11-apps; \
     rm -rf /var/lib/apt/lists/*
 
-# keep Pulse from autospawning inside the container
+RUN python3 -m pip install --default-timeout=100 \
+        absl-py \
+        awscli \
+        boto3 \
+        matplotlib \
+        numpy \
+        opencv-contrib-python \
+        opencv-python \
+        pyaudio \
+        scipy && \
+    python3 -m pip install --no-cache-dir --no-deps mediapipe==0.10.11
+
+RUN mkdir -p "${CATKIN_WS}/src" /root/.aws
+
+COPY certs/aws-credentials /root/.aws/credentials
+COPY certs/aws-config /root/.aws/config
+
+RUN chmod 600 /root/.aws/credentials /root/.aws/config
+
 RUN printf '%s\n' \
     "default-server = unix:/tmp/pulse/native" \
-    "autospawn      = no" \
-    "daemon-binary  = /bin/true" \
-    "enable-shm     = false" \
-    > /etc/pulse/client.conf
-
-# ----- Route every ALSA client to Pulse -----------------------------
-RUN printf '%s\n' \
+    "autospawn = no" \
+    "daemon-binary = /bin/true" \
+    "enable-shm = false" \
+    > /etc/pulse/client.conf && \
+    printf '%s\n' \
     'pcm.!default {' \
-    '  type pulse        # talk to the host Pulse / PipeWire server' \
+    '  type pulse' \
     '  fallback "sysdefault"' \
     '}' \
     'ctl.!default {' \
@@ -81,46 +107,26 @@ RUN printf '%s\n' \
     '}' \
     > /etc/asound.conf
 
-# ---------- Catkin workspace ----------
-ENV CATKIN_WS=/catkin_ws
-RUN mkdir -p $CATKIN_WS/src
-WORKDIR $CATKIN_WS
-COPY . $CATKIN_WS/src/
+COPY . ${CATKIN_WS}/src/
+COPY ros_docker_auto_startup_launcher.sh /usr/local/bin/ros_docker_auto_startup_launcher.sh
 
-# ---------- Startup script ----------
-COPY ros_docker_auto_startup_launcher.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/ros_docker_auto_startup_launcher.sh
-
-# ---------- Build workspace ----------
-RUN rosdep init && \
-    . /opt/ros/noetic/setup.sh && \
+RUN chmod +x /usr/local/bin/ros_docker_auto_startup_launcher.sh && \
+    if [ ! -f /etc/ros/rosdep/sources.list.d/20-default.list ]; then rosdep init; fi && \
+    source /opt/ros/${ROS_DISTRO}/setup.bash && \
     rosdep update && \
     rosdep install --from-paths src --ignore-src -r -y && \
     catkin build -DCMAKE_BUILD_TYPE=Release
 
-# ---------- User setup ----------
-# Create a user with the same UID/GID as the host user
-# This allows the container to access host files with the same permissions
-ARG UID=1000
-ARG GID=1000
-RUN groupadd -g ${GID} hostgroup && \
-    useradd  -u ${UID} -g hostgroup -m -s /bin/bash hostuser
+RUN set -eux; \
+    groupadd --gid "${GID}" hostgroup; \
+    useradd --uid "${UID}" --gid hostgroup --create-home --shell /bin/bash hostuser; \
+    mkdir -p /home/hostuser/.aws; \
+    cp /root/.aws/credentials /home/hostuser/.aws/credentials; \
+    cp /root/.aws/config /home/hostuser/.aws/config; \
+    chown -R hostuser:hostgroup "${CATKIN_WS}" /home/hostuser/.aws; \
+    chown -R hostuser:hostgroup /usr/local/lib/python3.8/dist-packages/mediapipe
 
-RUN chown -R hostuser:hostgroup /catkin_ws
-
-# ---------- give hostuser write access where it is needed ----------
-# 1. MediaPipe model directory
-RUN chown -R hostuser:hostgroup \
-    /usr/local/lib/python3.8/dist-packages/mediapipe
-
-# 2. copy AWS credentials to the unprivileged home
-RUN mkdir -p /home/hostuser/.aws && \
-    cp /root/.aws/credentials /home/hostuser/.aws/ && \
-    cp /root/.aws/config       /home/hostuser/.aws/ && \
-    chown -R hostuser:hostgroup /home/hostuser/.aws
-
-# ---------- Convenience sources ----------
-RUN echo "source /opt/ros/noetic/setup.bash"   >> /etc/bash.bashrc && \
-    echo "source /catkin_ws/devel/setup.bash" >> /etc/bash.bashrc
+RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> /etc/bash.bashrc && \
+    echo "source ${CATKIN_WS}/devel/setup.bash" >> /etc/bash.bashrc
 
 # ENTRYPOINT ["/usr/local/bin/ros_docker_auto_startup_launcher.sh"]

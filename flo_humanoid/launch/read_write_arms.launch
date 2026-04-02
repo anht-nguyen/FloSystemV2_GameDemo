@@ -3,6 +3,7 @@
   <!--   user‑tunable arguments  -->
   <arg name="port"       default="$(optenv FLO_MOTORS_DEVICE /dev/ttyUSB0)"/>
   <arg name="baudrate"   default="1000000"/>
+  <arg name="publish_joint_states" default="false"/>
 
   <!--   parameters on the server  -->
   <!-- Dynamixel ID ↔︎ joint map and mechanical offsets -->
@@ -17,10 +18,11 @@
         type="read_write_arms_node"
         name="read_write_arms_node"/>
 
-  <!-- publishes aggregated /joint_states so MoveIt sees hardware   -->
+  <!-- Only enable this in hardware-only setups that truly need this node to own /joint_states. -->
   <node pkg="joint_state_publisher"
         type="joint_state_publisher"
-        name="joint_state_publisher">
+        name="joint_state_publisher"
+        if="$(arg publish_joint_states)">
     <param name="use_gui" value="false"/>
   </node>
 </launch>

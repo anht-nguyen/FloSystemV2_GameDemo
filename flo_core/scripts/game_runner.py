@@ -26,7 +26,7 @@ RULES_TEXT = (
     "Rules:\n"
     "  1) Robot will announce two arm actions.\n"
     "  2) If it says ‘Simon says’, you do them. Otherwise, you stay still.\n"
-    "Click Continue when you’re ready, or Restart to hear these again."
+    "Use the GUI buttons to replay instructions, calibrate the camera, or start the game."
 )
 
 
@@ -41,6 +41,8 @@ RULES_SPEECH = """
     After every movement return to a ready position.
     Are you ready to play? 
     """
+
+READY_STATUS = "Ready for setup or game start."
 
 # ────────────────────────────────────────────────────────────────────────────
 # Helper states
@@ -68,46 +70,18 @@ def _goal_cb(ud, _):
     goal.simon_says = ud.simon_says
     return goal
 
-class Introduction:
-    """
-    Helper for the intro sequence: do a dual-arm wave, then publish the rules,
-    and wait for the GUI to send ‘continue’ or ‘restart’.
-    """
-    def __init__(self, client: SimpleActionClient, prompt_pub, controller):
-        self.client = client
-        self.prompt_pub = prompt_pub
-        self.controller = controller
-
-    def run(self):
-        # 1) Dual-arm wave
-        wave_goal = SimonCmdGoal(gesture_name="D_WAVE_left|D_WAVE_right", simon_says=True)
-        rospy.loginfo("[INTRO] sending dual-arm wave")
-        self.client.send_goal(wave_goal)
-        self.client.wait_for_result()
-
-        # 2) Publish rules text
-        rospy.loginfo("[INTRO] publishing rules")
-        self.prompt_pub.publish(RULES_TEXT)
-
-        # 3) Now wait for GUI to send 'continue' or 'restart'
-        rospy.loginfo("[INTRO] awaiting confirmation")
-        # control_msgs on /simon_game/control will set intro_done and last_cmd
-        # we just spin until control_cb flips self._confirmed
-        start = rospy.Time.now()
-        rate = rospy.Rate(10)
-        while not rospy.is_shutdown():
-            if self.controller._last_intro_cmd in ("continue", "restart"):
-                return self.controller._last_intro_cmd
-            rate.sleep()
-
 class CalibrationStage:
     """
     Drives the 'step back / forward' dialogue until flo_vision
     reports that the full upper body + arm-over-head are in view.
     """
-    def __init__(self, tts, prompt_pub):
+    def __init__(self, tts, prompt_pub, cancel_event: threading.Event | None = None):
         self._tts = tts
         self._prompt_pub = prompt_pub
+        self._cancel_event = cancel_event
+        self._speech_lock = threading.Lock()
+        self._speech_thread = None
+        self._pending_speech = None
         self._status_sub = rospy.Subscriber(
             "/simon_game/calib_status", CalibStatus, self._status_cb
         )
@@ -119,6 +93,48 @@ class CalibrationStage:
             "/simon_game/calib_cmd", Bool, queue_size=1, latch=True
         )
 
+    def _speech_worker(self, text: str):
+        current = text
+        while current and not rospy.is_shutdown():
+            self._tts.speak(current)
+            with self._speech_lock:
+                if self._cancel_event and self._cancel_event.is_set():
+                    self._pending_speech = None
+                    self._speech_thread = None
+                    return
+                if self._pending_speech and self._pending_speech != current:
+                    current = self._pending_speech
+                    self._pending_speech = None
+                    continue
+                self._pending_speech = None
+                self._speech_thread = None
+                return
+
+    def _speak_async(self, text: str):
+        with self._speech_lock:
+            if self._speech_thread and self._speech_thread.is_alive():
+                self._pending_speech = text
+                return
+            self._pending_speech = None
+            self._speech_thread = threading.Thread(
+                target=self._speech_worker, args=(text,), daemon=True
+            )
+            self._speech_thread.start()
+
+    def _wait_for_speech(self):
+        while not rospy.is_shutdown():
+            with self._speech_lock:
+                speech_thread = self._speech_thread
+                pending_speech = self._pending_speech
+            if speech_thread is None and pending_speech is None:
+                return
+            if self._cancel_event and self._cancel_event.is_set():
+                return
+            if speech_thread is not None:
+                speech_thread.join(timeout=0.1)
+            else:
+                rospy.sleep(0.05)
+
     # ------------------------------------------------------------------
     def _status_cb(self, msg: CalibStatus):
         self._ready = msg.ready
@@ -129,7 +145,7 @@ class CalibrationStage:
         # 1) Tell GUI + Vision we’re entering calibration
         self._cmd_pub.publish(True)
         self._prompt_pub.publish("Let’s do a quick camera check…")
-        self._tts.speak(
+        self._speak_async(
             "Let's first make sure the camera can see you well. Please raise your arm fully overhead and hold it there."
         )
 
@@ -138,6 +154,10 @@ class CalibrationStage:
         last_hint = None
 
         while not rospy.is_shutdown():
+            if self._cancel_event and self._cancel_event.is_set():
+                self._cmd_pub.publish(False)
+                return False
+
             # Stage 1 → Stage 2 as soon as we get any hint *besides* "raise_arm"
             if stage == 1 and self._hint == "arm_up":
                 # Move to framing stage
@@ -145,16 +165,17 @@ class CalibrationStage:
                 self._prompt_pub.publish(
                     "Great! Now step back or forward so I can see your full upper body."
                 )
-                self._tts.speak(
+                self._speak_async(
                     "Great! Now step back or forward until I can see your whole upper body and raised arm."
                 )
                 last_hint = None
 
             if stage == 2 and self._ready and self._hint == "arm_up":
                 # Success!
-                self._tts.speak("Perfect! I can see your whole upper body.")
+                self._speak_async("Perfect! I can see your whole upper body.")
+                self._wait_for_speech()
                 self._cmd_pub.publish(False)
-                return
+                return True
 
             # Only speak when hint changes
             if self._hint and self._hint != last_hint:
@@ -167,10 +188,107 @@ class CalibrationStage:
                 }.get(self._hint, "")
                 if msg:
                     self._prompt_pub.publish(msg)
-                    self._tts.speak(msg)
+                    self._speak_async(msg)
                     last_hint = self._hint
 
             rate.sleep()
+
+        self._cmd_pub.publish(False)
+        return False
+
+
+class StaticPoseStartStage:
+    """
+    Runs a short static-pose instruction, then verifies the player holds it
+    before the actual game starts.
+    """
+    def __init__(
+        self,
+        tts,
+        prompt_pub,
+        success_threshold: float,
+        hold_seconds: float,
+        cancel_event: threading.Event | None = None,
+    ):
+        self._tts = tts
+        self._prompt_pub = prompt_pub
+        self._success_threshold = success_threshold
+        self._hold_seconds = hold_seconds
+        self._cancel_event = cancel_event
+        self._latest_match = False
+        self._match_started_at = None
+        self._sub = rospy.Subscriber(
+            "/arm_hand_tracker/pose_score", PoseScore, self._pose_cb
+        )
+        self._pose_cmd_pub = rospy.Publisher(
+            "/arm_hand_tracker/pose_command", String, queue_size=1, latch=True
+        )
+
+    def _pose_cb(self, msg: PoseScore):
+        self._latest_match = (
+            msg.matched and msg.similarity >= self._success_threshold
+        )
+
+    def _run_instruction_step(self) -> bool:
+        self._prompt_pub.publish(
+            "Before we start, your static pose is both arms straight and relaxed by your sides."
+        )
+        self._tts.speak(
+            "Before we start, your static pose is both arms straight and relaxed by your sides."
+        )
+        if self._cancel_event and self._cancel_event.is_set():
+            return False
+        rospy.sleep(0.5)
+        return not (self._cancel_event and self._cancel_event.is_set())
+
+    def _run_pose_check_step(self) -> bool:
+        self._latest_match = False
+        self._match_started_at = None
+        self._pose_cmd_pub.publish(String(data="static"))
+        self._prompt_pub.publish(
+            "Show me your static pose now and hold it still for a moment."
+        )
+        self._tts.speak(
+            "Show me your static pose now and hold it still for a moment."
+        )
+
+        rate = rospy.Rate(20)
+        reminded_at = rospy.Time.now()
+
+        while not rospy.is_shutdown():
+            if self._cancel_event and self._cancel_event.is_set():
+                return False
+
+            now = rospy.Time.now()
+            if self._latest_match:
+                if self._match_started_at is None:
+                    self._match_started_at = now
+                if (now - self._match_started_at).to_sec() >= self._hold_seconds:
+                    self._prompt_pub.publish("Static pose looks good. Starting the game.")
+                    self._tts.speak("Static pose looks good. Starting the game.")
+                    return True
+            else:
+                self._match_started_at = None
+                if (now - reminded_at).to_sec() >= 4.0:
+                    self._prompt_pub.publish(
+                        "Please put both arms straight by your sides to make your static pose."
+                    )
+                    self._tts.speak(
+                        "Please put both arms straight by your sides to make your static pose."
+                    )
+                    reminded_at = now
+
+            rate.sleep()
+
+        return False
+
+    def run(self) -> bool:
+        try:
+            if not self._run_instruction_step():
+                return False
+            return self._run_pose_check_step()
+        finally:
+            self._sub.unregister()
 
 
 class Announce(smach.State):
@@ -731,12 +849,16 @@ class GameController:
             "simon_ratio": rospy.get_param("~simon_ratio"),
             "total_rounds": rospy.get_param("~total_rounds"),
             "success_threshold": rospy.get_param("~threshold"),
-            "static_threshold": rospy.get_param("~static_threshold")
+            "static_threshold": rospy.get_param("~static_threshold"),
+            "static_start_hold_seconds": rospy.get_param("~static_start_hold_seconds", 1.5),
         }
 
         # ── status publisher so GUI can enable “Start” when we’re ready ──
         self.status_pub = rospy.Publisher(
             "/simon_game/status", String, queue_size=1, latch=True
+        )
+        self.ui_state_pub = rospy.Publisher(
+            "/simon_game/ui_state", String, queue_size=1, latch=True
         )
 
         # ── PRE-GENERATE FULL SEQUENCE ─────────────────────────────────
@@ -776,14 +898,14 @@ class GameController:
         # Control subscriber
         self.control_sub = rospy.Subscriber('/simon_game/control', String, self.control_cb)
         self.running = False
-        # state for intro handshake
+        # state for optional pre-game steps
         self.intro_done = False
-        self._last_intro_cmd = None
         # Flags for pause/resume 
         self.pause_pending = False
         self.resume_pending = False
         # intro-thread state flags
         self.intro_in_progress = False
+        self.pre_game_cancel = threading.Event()
         # action-client for intro waving
 
         # Start the introspection server
@@ -793,84 +915,135 @@ class GameController:
         # self.cmd_client.wait_for_server()
 
 
-    # ───────────────────────────────── INTRO HANDLER ─────────────────────────
-    def _run_intro(self):
-        """Runs in a background thread: dual-arm wave → rules → wait for GUI."""
+    # ─────────────────────────────── PRE-GAME HELPERS ────────────────────────
+    def _publish_ui_state(self, ui_state: str):
+        self.ui_state_pub.publish(ui_state)
+
+    def _set_ready_state(self, prompt_text: str | None = None):
+        if prompt_text:
+            self.prompt_pub.publish(prompt_text)
+        self._publish_ui_state("ready")
+        self.status_pub.publish(READY_STATUS)
+
+    def _rebuild_game_state_machine(self):
+        self.sequence = []
+        for _ in range(self.params["total_rounds"]):
+            l, r = _pick_actions(self.action_pool)
+            s = (random.random() < self.params["simon_ratio"])
+            self.sequence.append((l, r, s))
+
+        self.sm = build_sm(
+            self.sequence, self.params, self.score_pub, self.prompt_pub, self
+        )
+        self.sis = smach_ros.IntrospectionServer("game_sm", self.sm, "/GAME_SM")
+
+    def _start_game(self):
+        if self.running or self.intro_in_progress:
+            return
+        self.intro_in_progress = True
+        threading.Thread(target=self._run_start_game_sequence, daemon=True).start()
+
+    def _run_start_game_sequence(self):
         try:
-            # ── 1)  WELCOME ────────────────────────────────────────────────
+            self._publish_ui_state("setup_static_pose")
+            self.status_pub.publish("Checking static pose before game start.")
+            self.pre_game_cancel.clear()
 
-            rospy.loginfo("[INTRO] Speaking welcome speech")
-            # Let the GUI show the same text via its /prompt callback
-            # self.prompt_pub.publish(WELCOME_SPEECH.strip())
-
-            self.tts.speak("Hi there!")
-            # --- Speak & wave concurrently --------------------------------
-            tts_thread = threading.Thread(
-                target=self.tts.speak, args=(WELCOME_SPEECH,)
+            static_stage = StaticPoseStartStage(
+                self.tts,
+                self.prompt_pub,
+                self.params["static_threshold"],
+                self.params["static_start_hold_seconds"],
+                self.pre_game_cancel,
             )
-            tts_thread.start()              # non-blocking TTS stream
+            if not static_stage.run():
+                self._set_ready_state("Start canceled. Choose the next step.")
+                return
 
-            # Wave  (send_goal returns immediately; the arm starts moving)
-            goal = SimonCmdGoal(
-                gesture_name="D_WAVE_left|D_WAVE_right", simon_says=True
-            )
-            rospy.loginfo("[INTRO] Dual-arm wave")
-            self.cmd_client.send_goal(goal)
-
-            # Wait for BOTH the arm motion and the speech to finish
-            self.cmd_client.wait_for_result()
-            tts_thread.join()
-
-            # 2) Rules
-            rospy.loginfo("[INTRO] Publishing rules text")
-            self.prompt_pub.publish(RULES_TEXT)
-            rospy.loginfo("[INTRO] Speaking rules speech")
-            self.tts.speak(RULES_SPEECH)
-
-            # 3) Wait for GUI to press Continue / Restart ---------------------------
-            r = rospy.Rate(10)
-            while not rospy.is_shutdown():
-                if self._last_intro_cmd == "continue":
-                    rospy.loginfo("[INTRO] Continue received → run calibration")
-                    self._last_intro_cmd = None
-
-                    # ── NEW: launch calibration stage ─────────────────────────────
-                    calib = CalibrationStage(self.tts, self.prompt_pub)
-                    calib.run()   # blocks until arm-up AND framing are both OK
-
-                    # announce end of calibration and enable GUI Continue
-                    self.prompt_pub.publish("Calibration complete. Press Continue to start.")
-                    self.tts.speak("Calibration complete. Press Continue when you are ready.")
-
-                    # now wait for the operator to click Continue again
-                    while not rospy.is_shutdown():
-                        if self._last_intro_cmd == "continue":
-                            rospy.loginfo("[INTRO] Second Continue → start game")
-                            break
-                        r.sleep()
-
-                    # finally start the game
-                    self._last_intro_cmd = None
-                    self.intro_done = True
-                    self.intro_in_progress = False
-                    self.running = True
-                    self.sis.start()
-                    threading.Thread(target=self.run_game).start()
-                    return
-
-                if self._last_intro_cmd == "restart":
-                    rospy.loginfo("[INTRO] Restart received → reset intro")
-                    self.intro_in_progress = False
-                    self._last_intro_cmd = None
-                    # ── tell GUI everything is reset ───────────────────────
-                    self.score_pub.publish(0)                          # scoreboard → 0
-                    rospy.Publisher('/simon_game/turn_id', Int32,
-                                    queue_size=1, latch=True).publish(0)
-                    self.status_pub.publish("Waiting for Start command..")
-                    return
-                r.sleep()
+            self.running = True
+            self.intro_done = True
+            self._publish_ui_state("in_game")
+            self.status_pub.publish("Game running.")
+            self.sis.start()
+            self.game_thread = threading.Thread(target=self.run_game, daemon=True)
+            self.game_thread.start()
         finally:
-            # safety: clear flag on any unexpected exit
+            self.intro_in_progress = False
+
+    def _run_instruction_sequence(self) -> bool:
+        self._publish_ui_state("setup_instructions")
+        self.status_pub.publish("Reading instructions.")
+        self.pre_game_cancel.clear()
+        rospy.loginfo("[INTRO] Speaking welcome speech")
+        self.tts.speak("Hi there!")
+        tts_thread = threading.Thread(
+            target=self.tts.speak, args=(WELCOME_SPEECH,)
+        )
+        tts_thread.start()
+
+        goal = SimonCmdGoal(
+            gesture_name="D_WAVE_left|D_WAVE_right", simon_says=True
+        )
+        rospy.loginfo("[INTRO] Dual-arm wave")
+        self.cmd_client.send_goal(goal)
+
+        self.cmd_client.wait_for_result()
+        if self.pre_game_cancel.is_set():
+            self._set_ready_state("Setup canceled. Choose the next step.")
+            return False
+        tts_thread.join()
+        if self.pre_game_cancel.is_set():
+            self._set_ready_state("Setup canceled. Choose the next step.")
+            return False
+
+        rospy.loginfo("[INTRO] Publishing rules text")
+        self.prompt_pub.publish(RULES_TEXT)
+        rospy.loginfo("[INTRO] Speaking rules speech")
+        self.tts.speak(RULES_SPEECH)
+        if self.pre_game_cancel.is_set():
+            self._set_ready_state("Setup canceled. Choose the next step.")
+            return False
+        return True
+
+    def _run_calibration_sequence(self) -> bool:
+        self._publish_ui_state("setup_calibration")
+        self.status_pub.publish("Calibrating camera.")
+        self.pre_game_cancel.clear()
+        calib = CalibrationStage(self.tts, self.prompt_pub, self.pre_game_cancel)
+        finished = calib.run()
+        if not finished:
+            self._set_ready_state("Calibration canceled. Choose the next step.")
+            return False
+        self.prompt_pub.publish("Calibration complete. You can start the game.")
+        self.tts.speak("Calibration complete. You can start the game when you are ready.")
+        return True
+
+    def _run_instructions(self):
+        try:
+            if not self._run_instruction_sequence():
+                return
+            self._set_ready_state(
+                "Instructions complete. Calibrate the camera or start the game."
+            )
+        finally:
+            self.intro_in_progress = False
+
+    def _run_calibration(self):
+        try:
+            if not self._run_calibration_sequence():
+                return
+            self._set_ready_state()
+        finally:
+            self.intro_in_progress = False
+
+    def _run_full_setup(self):
+        try:
+            if not self._run_instruction_sequence():
+                return
+            if not self._run_calibration_sequence():
+                return
+            self._set_ready_state("Setup complete. Start the game when you are ready.")
+        finally:
             self.intro_in_progress = False
 
     # ───────────────────────────────── CONTROL CALLBACK ─────────────────────
@@ -878,31 +1051,51 @@ class GameController:
         cmd = msg.data
         rospy.loginfo(f"Received control: {cmd}")
 
-        # ----- pre-game: introduction handshake -----
-        if not self.intro_done:
-            if cmd == "start" and not self.intro_in_progress:
-                # spawn intro thread and return immediately
-                self.intro_in_progress = True
-                threading.Thread(target=self._run_intro, daemon=True).start()
-            elif cmd in ("continue", "restart") and self.intro_in_progress:
-                # just record the GUI choice; intro thread will react
-                self._last_intro_cmd = cmd
-            return  # ignore everything else until intro is settled
+        if cmd == "start":
+            cmd = "read_instructions"
+        elif cmd == "continue":
+            cmd = "resume" if self.running else "start_game"
+
+        if cmd == "read_instructions" and not self.running and not self.intro_in_progress:
+            self.intro_in_progress = True
+            threading.Thread(target=self._run_instructions, daemon=True).start()
+            return
+        if cmd == "run_full_setup" and not self.running and not self.intro_in_progress:
+            self.intro_in_progress = True
+            threading.Thread(target=self._run_full_setup, daemon=True).start()
+            return
+        if cmd == "calibrate_camera" and not self.running and not self.intro_in_progress:
+            self.intro_in_progress = True
+            threading.Thread(target=self._run_calibration, daemon=True).start()
+            return
+        if cmd == "start_game" and not self.running and not self.intro_in_progress:
+            self._start_game()
+            return
+        if self.intro_in_progress:
+            if cmd in ("stop", "restart"):
+                rospy.loginfo("[game_runner] Canceling active pre-game step")
+                self.pre_game_cancel.set()
+                if cmd == "restart":
+                    self.score_pub.publish(0)
+                    rospy.Publisher('/simon_game/turn_id', Int32, queue_size=1, latch=True).publish(0)
+                self._set_ready_state("Setup canceled. Choose the next step.")
+            elif cmd == "quit":
+                rospy.signal_shutdown('Quit via GUI')
+            rospy.loginfo("[game_runner] Ignoring command while a pre-game step is running")
+            return
 
         # ----- post-intro: normal game controls -----
-        if cmd == 'start' and not self.running:
-            self.running = True
-            self.sis.start()
-            self.game_thread = threading.Thread(target=self.run_game, daemon=True)
-            self.game_thread.start()
-        # Pause/Resume controls
-        elif cmd == 'pause' and self.running:
+        if cmd == 'pause' and self.running:
             self.pause_pending = True
             self.sm.request_preempt()
-        elif cmd == 'continue':
+            self._publish_ui_state("paused")
+            self.status_pub.publish("Game paused.")
+        elif cmd == 'resume':
             self.resume_pending = True
             self.pause_pending = False
             rospy.loginfo("[game_runner] Resume requested – continuing game")
+            self._publish_ui_state("in_game")
+            self.status_pub.publish("Game running.")
         # Force finish
         elif cmd == 'stop' and self.running:
             self.sm.userdata.turn_idx = self.params['total_rounds'] + 1
@@ -931,32 +1124,20 @@ class GameController:
             except Exception:
                 pass
 
-            # 2) Clear intro handshake so rules are shown again
+            # 2) Clear intro handshake so the next run can choose any entry point
             self.intro_done = False
             self.intro_in_progress = False
-            self._last_intro_cmd = None
 
             # 3) Publish reset values so the GUI shows   Turn: 0 / Score: 0
             self.score_pub.publish(0)
             rospy.Publisher('/simon_game/turn_id', Int32, queue_size=1, latch=True).publish(0)
 
             # 4) Build a brand-new gesture sequence and SMACH graph
-            self.sequence = []
-            for _ in range(self.params["total_rounds"]):
-                l, r = _pick_actions(self.action_pool)
-                s = (random.random() < self.params["simon_ratio"])
-                self.sequence.append((l, r, s))
-
-            self.sm = build_sm(
-                self.sequence, self.params, self.score_pub, self.prompt_pub, self
-            )
-
-            # 5) Fresh introspection server bound to the new SM
-            self.sis = smach_ros.IntrospectionServer("game_sm", self.sm, "/GAME_SM")
+            self._rebuild_game_state_machine()
             rospy.loginfo("[game_runner] Ready for new Start")
 
-            # tell GUI it’s safe to re-enable the Start button
-            self.status_pub.publish("Waiting for Start command..")
+            # tell GUI it’s safe to re-enable the stage buttons
+            self._set_ready_state("Session reset. Choose the next step.")
 
             return
         elif cmd == 'quit':
@@ -968,6 +1149,8 @@ class GameController:
         final_score = self.sm.userdata.score
         total      = self.params["total_rounds"]
         game_over_text = f"Game Over! Your final score is {final_score} out of {total}."
+        self._publish_ui_state("game_over")
+        self.status_pub.publish(game_over_text)
         self.prompt_pub.publish(game_over_text)
         self.tts.speak(game_over_text)
         rospy.loginfo(f"Game finished: {outcome}")
@@ -983,7 +1166,8 @@ def main():
     controller = GameController()
     # Console + GUI become ready together
     rospy.loginfo('[game_runner] Waiting for Start command...')
-    controller.status_pub.publish("Waiting for Start command..")
+    controller.ui_state_pub.publish("ready")
+    controller.status_pub.publish(READY_STATUS)
     rospy.spin()
 
 if __name__ == '__main__':

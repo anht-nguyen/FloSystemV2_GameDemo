@@ -34,7 +34,7 @@ class JointStateToDxlBridge:
         js = dict(zip(msg.name, msg.position))
 
         try:
-            l1 = math.degrees(js['l1']) + self.offsets['l1']
+            l1 = - math.degrees(js['l1']) + self.offsets['l1']
             l2 = math.degrees(js['l2']) + self.offsets['l2']
             l3 = math.degrees(js['l3']) + self.offsets['l3']
             l4 = math.degrees(js['l4']) + self.offsets['l4'] 

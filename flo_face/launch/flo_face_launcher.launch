@@ -1,5 +1,5 @@
 <launch>
-  <arg name="port" default="$(optenv FLO_FACE_DEVICE /dev/ttyACM0)"/>
+  <arg name="port" default="$(optenv FLO_FACE_DEVICE /dev/flo_face)"/>
   <node pkg="flo_face" type="face_com_manager.py" name="face_com"
         output="screen">
     <param name="port" value="$(arg port)"/>

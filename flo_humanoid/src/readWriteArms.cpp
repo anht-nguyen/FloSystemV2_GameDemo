@@ -49,7 +49,7 @@ const char * resolve_motor_device() {
   if (device != nullptr && device[0] != '\0') {
     return device;
   }
-  return "/dev/ttyUSB0";
+  return "/dev/flo_motors";
 }
 
 const uint32_t PROFILE_ACCEL      = 1000;  // ≈107 k rev/min²

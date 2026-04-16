@@ -20,8 +20,11 @@ services:
       - AWS_SHARED_CREDENTIALS_FILE=/home/hostuser/.aws/credentials
       - AWS_CONFIG_FILE=/home/hostuser/.aws/config
       - FLO_CAMERA_DEVICE=/dev/flo_camera
+      - FLO_CAMERA_SOURCE=${FLO_CAMERA_SOURCE:-/dev/flo_camera}
       - FLO_MOTORS_DEVICE=/dev/flo_motors
+      - FLO_MOTORS_SOURCE=${FLO_MOTORS_SOURCE:-/dev/flo_motors}
       - FLO_FACE_DEVICE=/dev/flo_face
+      - FLO_FACE_SOURCE=${FLO_FACE_SOURCE:-/dev/flo_face}
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix:ro
       # PulseWire socket + cookie (read-only is fine)
@@ -32,9 +35,9 @@ services:
       - ./certs/aws-config:/home/hostuser/.aws/config:ro
       # - /dev/snd:/dev/snd                 # pass audio
     devices:
-      - ${FLO_CAMERA_SOURCE:-/dev/video0}:/dev/flo_camera
-      - ${FLO_MOTORS_SOURCE:-/dev/ttyUSB0}:/dev/flo_motors
-      - ${FLO_FACE_SOURCE:-/dev/ttyACM0}:/dev/flo_face
+      - ${FLO_CAMERA_SOURCE:-/dev/flo_camera}:/dev/flo_camera
+      - ${FLO_MOTORS_SOURCE:-/dev/flo_motors}:/dev/flo_motors
+      - ${FLO_FACE_SOURCE:-/dev/flo_face}:/dev/flo_face
       - /dev/snd:/dev/snd                 # ALSA devices
     working_dir: /catkin_ws
     # ipc: host

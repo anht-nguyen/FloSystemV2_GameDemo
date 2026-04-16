@@ -1,5 +1,5 @@
 <launch>
-  <arg name="video_device" default="$(optenv FLO_CAMERA_DEVICE /dev/video0)"/>
+  <arg name="video_device" default="$(optenv FLO_CAMERA_DEVICE /dev/flo_camera)"/>
   <!-- Integrated webcam driver -->
   <node pkg="usb_cam" type="usb_cam_node" name="usb_cam">
     <param name="video_device" value="$(arg video_device)"/>

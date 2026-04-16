@@ -1,7 +1,7 @@
 <!-- flo_humanoid/launch/read_write_arms.launch -->
 <launch>
   <!--   user‑tunable arguments  -->
-  <arg name="port"       default="$(optenv FLO_MOTORS_DEVICE /dev/ttyUSB0)"/>
+  <arg name="port"       default="$(optenv FLO_MOTORS_DEVICE /dev/flo_motors)"/>
   <arg name="baudrate"   default="1000000"/>
   <arg name="publish_joint_states" default="false"/>
 

@@ -184,6 +184,8 @@ roslaunch flo_vision usb_cam_launcher.launch
 roslaunch flo_vision arm_hand_tracker_launcher.launch
 ```
 
+If the camera launch reports `VIDIOC_G_FMT error 22, Invalid argument`, retry with `image_width:=640 image_height:=480 pixel_format:=yuyv` or `image_width:=1280 image_height:=720 pixel_format:=mjpeg`.
+
 ### Run the dual-arm hardware interface
 
 ```bash

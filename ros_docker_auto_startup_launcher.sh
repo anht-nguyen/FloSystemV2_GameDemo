@@ -9,6 +9,7 @@ set -e
 source /opt/ros/noetic/setup.bash
 source /catkin_ws/devel/setup.bash
 eval "$(python3 /catkin_ws/src/utility/device_paths.py --format shell)"
+eval "$(python3 /catkin_ws/src/utility/select_usb_camera_profile.py --device "${FLO_CAMERA_DEVICE}")"
 
 
 # 1) Start tmux session named “ros”

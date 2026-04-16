@@ -69,6 +69,7 @@ RUN set -eux; \
         ros-${ROS_DISTRO}-usb-cam \
         tmux \
         udev \
+        v4l-utils \
         x11-apps; \
     rm -rf /var/lib/apt/lists/*
 

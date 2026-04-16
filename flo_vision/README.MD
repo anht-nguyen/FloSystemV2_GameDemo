@@ -137,6 +137,17 @@ You should see numeric output if the tracker is running and detecting joints.
   ```
 
   This should start the camera node and display the video stream, confirming that your webcam is accessible.
+- If `roslaunch flo_vision usb_cam_launcher.launch` fails with `VIDIOC_G_FMT error 22, Invalid argument`, the camera usually does not support the requested width, height, and pixel format combination. Start with:
+
+  ```sh
+  roslaunch flo_vision usb_cam_launcher.launch image_width:=640 image_height:=480 framerate:=30 pixel_format:=yuyv
+  ```
+
+- If you need `1280x720`, many webcams require MJPEG instead of YUYV:
+
+  ```sh
+  roslaunch flo_vision usb_cam_launcher.launch image_width:=1280 image_height:=720 framerate:=30 pixel_format:=mjpeg
+  ```
 
 ## License
 

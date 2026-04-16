@@ -118,6 +118,7 @@ export UID
 export GID=$(id -g)
 export XAUTHORITY=${XAUTHORITY:-$HOME/.Xauthority}
 export PULSE_DIR=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/pulse
+export FLO_RECORD_DEVICE=${FLO_RECORD_DEVICE:-pulse}
 eval "$(python3 utility/device_paths.py --format shell)"
 docker compose build
 docker compose up -d
@@ -173,6 +174,43 @@ That launch file starts:
 - `simon_says_gui.py`
 
 Game parameters are loaded from [`flo_core/config/simonsays_game_params.yaml`](/home/rrl/FloSystemV2_GameDemo/flo_core/config/simonsays_game_params.yaml).
+
+## Conversation Demo
+
+The repo now also includes a conversational ROS node that can:
+
+- speak a prompt using Amazon Polly
+- record microphone audio with `arecord`
+- transcribe speech with the Gemini API
+- generate a follow-up conversational reply with Gemini
+- speak the response back through the existing Polly audio path
+
+Run it with:
+
+```bash
+export GEMINI_API_KEY=your_key_here
+export GEMINI_CHAT_MODEL=${GEMINI_CHAT_MODEL:-gemini-2.5-flash}
+export GEMINI_TRANSCRIPTION_MODEL=${GEMINI_TRANSCRIPTION_MODEL:-gemini-2.5-flash}
+roslaunch flo_core conversation_agent.launch
+```
+
+You can also store the key in `certs/gemini-api-key`.
+
+Useful runtime params include `chat_model`, `transcription_model`,
+`listen_duration_s`, `record_device`, and `opening_prompt`.
+
+For Docker microphone access, the stack defaults `record_device` to `pulse`.
+If you need to target a raw ALSA capture device instead, export something like:
+
+```bash
+export FLO_RECORD_DEVICE=hw:1,0
+```
+
+Quick microphone smoke test inside the running container:
+
+```bash
+docker exec -it flo_game arecord -D "${FLO_RECORD_DEVICE:-pulse}" -f S16_LE -r 16000 -c 1 -d 3 /tmp/mic_test.wav
+```
 
 ## Common Commands
 

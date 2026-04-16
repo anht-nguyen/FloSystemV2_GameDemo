@@ -16,14 +16,14 @@ eval "$(python3 "${SCRIPT_DIR}/utility/device_paths.py" --format shell)"
 
 # Defaults
 PORTS=""
-SIDE="right"           # left | right | dual
-REPEAT=1
+SIDE="left"           # left | right | dual
+REPEAT=2
 EEPROM_WAIT_MS=50
-PROFILE_ACCEL=500
-PROFILE_VEL=200
-P_GAIN=""
+PROFILE_ACCEL=1000
+PROFILE_VEL=400
+P_GAIN=81
 I_GAIN=""
-D_GAIN=""
+D_GAIN=18
 NO_WAIT=0
 FINAL_TORQUE_OFF=0
 

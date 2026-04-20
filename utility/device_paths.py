@@ -87,10 +87,7 @@ def format_shell(paths: Dict[str, str]) -> str:
     for key, env_name in ENV_MAP.items():
         lines.append(f"export {env_name}={shlex.quote(paths[key])}")
     for key, env_name in SOURCE_ENV_MAP.items():
-        device_env_name = ENV_MAP[key]
-        lines.append(
-            f'export {env_name}=$(readlink -f "${{{device_env_name}}}" 2>/dev/null || printf %s "${{{device_env_name}}}")'
-        )
+        lines.append(f"export {env_name}={shlex.quote(paths[f'{key}_source'])}")
     lines.append(f"export FLO_DEVICE_RULES_FILE={shlex.quote(paths['rules_file'])}")
     lines.append(f"export FLO_USE_UDEV_RULES={shlex.quote(paths['use_udev_rules'])}")
     return "\n".join(lines)

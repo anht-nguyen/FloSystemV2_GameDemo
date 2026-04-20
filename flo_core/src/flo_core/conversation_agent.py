@@ -608,7 +608,7 @@ class ConversationAgentNode:
                 "Do not ask multiple questions at once. "
                 "This is a brief interaction, so after a few exchanges, at least 5 minutes long, or sooner if the conversation naturally pauses, "
                 "gently invite the person to play a game of Simon Says with you. "
-                "Make that invitation feel like a smooth, upbeat transition from the conversation."
+                "Make that invitation feel like a smooth, upbeat transition from the conversation. If the answer to the invitation is yes, then you should say something like \"wait for the instructor to start the game\", and you stop here to let the instructor take over."
             ),
         )
         self._system_prompt += (

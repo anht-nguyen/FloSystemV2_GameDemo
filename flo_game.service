@@ -1,8 +1,8 @@
 [Unit]
 Description=Auto-start Flo Simon Says Game Docker
 # Wait until the network **and** NetworkManager report "online"
-After=network-online.target NetworkManager-wait-online.service docker.service
-Wants=docker.service NetworkManager-wait-online.service
+After=network-online.target NetworkManager-wait-online.service docker.service graphical.target
+Wants=docker.service NetworkManager-wait-online.service graphical.target
 
 [Service]
 Type=simple
@@ -23,4 +23,4 @@ StandardOutput=journal
 StandardError=journal
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=graphical.target

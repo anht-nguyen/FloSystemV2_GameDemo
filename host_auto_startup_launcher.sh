@@ -53,6 +53,32 @@ confirm_startup() {
   return 0
 }
 
+wait_for_gui_session() {
+  local attempts="${1:-60}"
+  local sleep_seconds="${2:-2}"
+
+  export DISPLAY="${DISPLAY:-:0}"
+  export XAUTHORITY="${XAUTHORITY:-$HOME/.Xauthority}"
+  export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+  export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=${XDG_RUNTIME_DIR}/bus}"
+
+  for ((i = 1; i <= attempts; i++)); do
+    if [ -S "${XDG_RUNTIME_DIR}/bus" ] \
+      && [ -e "$XAUTHORITY" ] \
+      && command -v xdpyinfo >/dev/null 2>&1 \
+      && xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; then
+      echo "$(date '+%F %T') [INFO] GUI session is ready on ${DISPLAY}"
+      return 0
+    fi
+
+    echo "$(date '+%F %T') [WARN] Waiting for graphical session (${i}/${attempts})"
+    sleep "$sleep_seconds"
+  done
+
+  echo "$(date '+%F %T') [WARN] Graphical session did not become ready in time."
+  return 1
+}
+
 announce_step() {
   local message="$1"
   echo "$(date '+%F %T') [INFO] ${message}"
@@ -108,6 +134,11 @@ wait_for_path() {
 MAX_WAIT=90          # seconds before we give up
 CHECK_INTERVAL=3     # seconds between checks
 ELAPSED=0
+
+announce_step "Waiting for graphical session"
+if ! wait_for_gui_session 90 2; then
+  fail_with_notification "Desktop session was not ready, so the startup confirmation dialog could not be shown."
+fi
 
 if ! confirm_startup; then
   announce_step "Startup canceled by user"

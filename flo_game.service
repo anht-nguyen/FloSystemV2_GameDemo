@@ -17,6 +17,7 @@ Environment=DISPLAY=:0
 Environment=XAUTHORITY=/home/rrl/.Xauthority
 Environment=XDG_RUNTIME_DIR=/run/user/1000
 Environment=PULSE_SERVER=unix:/run/user/1000/pulse/native
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 
 StandardOutput=journal
 StandardError=journal

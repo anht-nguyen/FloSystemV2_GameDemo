@@ -3,7 +3,9 @@
     <param name="voice_id" value="Salli" />
     <param name="aws_region" value="us-east-1" />
     <param name="chat_model" value="$(optenv GEMINI_CHAT_MODEL gemini-2.5-flash)" />
+    <param name="chat_fallback_models" value="$(optenv GEMINI_CHAT_FALLBACK_MODELS gemini-2.5-flash-lite)" />
     <param name="transcription_model" value="$(optenv GEMINI_TRANSCRIPTION_MODEL gemini-2.5-flash)" />
+    <param name="transcription_fallback_models" value="$(optenv GEMINI_TRANSCRIPTION_FALLBACK_MODELS gemini-2.5-flash-lite)" />
     <param name="listen_duration_s" value="6" />
     <param name="record_device" value="$(optenv FLO_RECORD_DEVICE pulse)" />
     <param name="loop" value="true" />

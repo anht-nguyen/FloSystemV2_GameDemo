@@ -36,6 +36,17 @@ DEFAULT_FACE_LABELS = [
     "embarrassed",
 ]
 
+
+TRANSIENT_GEMINI_ERROR_TOKENS = (
+    "(503 ",
+    " 503 ",
+    '"code": 503',
+    '"status": "unavailable"',
+    "service unavailable",
+    "currently experiencing high demand",
+    "temporarily unavailable",
+)
+
 def _read_secret_file(path: str) -> str:
     if not path or not os.path.exists(path):
         return ""
@@ -74,6 +85,33 @@ def _default_record_device() -> str:
     )
 
 
+def _coerce_model_list(value) -> List[str]:
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if value is None:
+        return []
+    text = str(value).strip()
+    if not text:
+        return []
+    return [item.strip() for item in text.split(",") if item.strip()]
+
+
+def _dedupe_models(primary_model: str, fallback_models) -> List[str]:
+    ordered_models = []
+    seen = set()
+    for model in [primary_model] + _coerce_model_list(fallback_models):
+        normalized = GeminiClient._normalize_model_name(model)
+        if normalized and normalized not in seen:
+            ordered_models.append(normalized)
+            seen.add(normalized)
+    return ordered_models
+
+
+def _is_transient_gemini_error(message: str) -> bool:
+    normalized = (message or "").strip().lower()
+    return any(token in normalized for token in TRANSIENT_GEMINI_ERROR_TOKENS)
+
+
 def _load_face_labels(default_labels: List[str], faces_json_path: str = "") -> List[str]:
     faces_json = faces_json_path
     if not faces_json:
@@ -107,13 +145,18 @@ class GeminiClient:
         api_key: str,
         chat_model: str,
         transcription_model: str,
+        chat_fallback_models: List[str],
+        transcription_fallback_models: List[str],
         system_prompt: str,
         timeout_s: float,
     ):
         if not api_key:
             raise ValueError("GEMINI_API_KEY (or ~api_key) is required")
-        self._chat_model = chat_model
-        self._transcription_model = transcription_model
+        self._chat_models = _dedupe_models(chat_model, chat_fallback_models)
+        self._transcription_models = _dedupe_models(
+            transcription_model,
+            transcription_fallback_models,
+        )
         self._system_prompt = system_prompt
         self._timeout_s = timeout_s
         self._api_key = api_key
@@ -176,6 +219,34 @@ class GeminiClient:
                 f"Gemini API network error for model '{normalized_model}': {exc.reason}"
             )
 
+    def _generate_with_fallbacks(self, models: List[str], payload: Dict, request_kind: str) -> Dict:
+        if not models:
+            raise RuntimeError(f"No Gemini {request_kind} models were configured")
+
+        errors = []
+        for index, model in enumerate(models):
+            try:
+                if index > 0:
+                    rospy.logwarn(
+                        "Retrying Gemini %s request with fallback model '%s' after transient failure.",
+                        request_kind,
+                        model,
+                    )
+                return self._post_generate_content(model, payload)
+            except RuntimeError as exc:
+                errors.append(str(exc))
+                if not _is_transient_gemini_error(str(exc)) or index == len(models) - 1:
+                    if len(errors) == 1:
+                        raise
+                    raise RuntimeError(
+                        f"Gemini {request_kind} request failed after trying models "
+                        f"{models}: {' | '.join(errors)}"
+                    )
+
+        raise RuntimeError(
+            f"Gemini {request_kind} request failed after trying models {models}: {' | '.join(errors)}"
+        )
+
     @staticmethod
     def _extract_text(response: Dict) -> str:
         candidates = response.get("candidates") or []
@@ -214,7 +285,11 @@ class GeminiClient:
                 "temperature": 0.0,
             },
         }
-        response = self._post_generate_content(self._transcription_model, payload)
+        response = self._generate_with_fallbacks(
+            self._transcription_models,
+            payload,
+            "transcription",
+        )
         return self._extract_text(response)
 
     @staticmethod
@@ -287,7 +362,7 @@ class GeminiClient:
                 "temperature": temperature,
             },
         }
-        response = self._post_generate_content(self._chat_model, payload)
+        response = self._generate_with_fallbacks(self._chat_models, payload, "audio")
         return _parse_audio_turn_reply(self._extract_text(response), allowed_faces)
 
     def chat(self, messages: List[Dict[str, str]], temperature: float) -> str:
@@ -301,7 +376,7 @@ class GeminiClient:
                 "temperature": temperature,
             },
         }
-        response = self._post_generate_content(self._chat_model, payload)
+        response = self._generate_with_fallbacks(self._chat_models, payload, "chat")
         return self._extract_text(response)
 
 
@@ -475,6 +550,21 @@ class ConversationAgentNode:
             "~transcription_model",
             os.getenv("GEMINI_TRANSCRIPTION_MODEL", "gemini-2.5-flash"),
         )
+        self._chat_fallback_models = _coerce_model_list(
+            rospy.get_param(
+                "~chat_fallback_models",
+                os.getenv("GEMINI_CHAT_FALLBACK_MODELS", "gemini-2.5-flash-lite"),
+            )
+        )
+        self._transcription_fallback_models = _coerce_model_list(
+            rospy.get_param(
+                "~transcription_fallback_models",
+                os.getenv(
+                    "GEMINI_TRANSCRIPTION_FALLBACK_MODELS",
+                    "gemini-2.5-flash-lite",
+                ),
+            )
+        )
         self._api_timeout_s = float(rospy.get_param("~api_timeout_s", 60.0))
         self._temperature = float(rospy.get_param("~temperature", 0.7))
         self._language = rospy.get_param("~language", "")
@@ -541,6 +631,8 @@ class ConversationAgentNode:
             api_key=self._api_key,
             chat_model=self._chat_model,
             transcription_model=self._transcription_model,
+            chat_fallback_models=self._chat_fallback_models,
+            transcription_fallback_models=self._transcription_fallback_models,
             system_prompt=self._system_prompt,
             timeout_s=self._api_timeout_s,
         )

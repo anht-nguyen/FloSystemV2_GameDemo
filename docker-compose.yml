@@ -11,9 +11,12 @@ services:
     privileged: true              # required for hardware device passthrough & audio
     user: "${UID}:${GID}"
     environment:
+      - HOME=/home/hostuser
       - DISPLAY=${DISPLAY}
       - XDG_RUNTIME_DIR=/tmp/pulse   # new path *inside* the container
       - PULSE_SERVER=unix:/tmp/pulse/native
+      - PULSE_COOKIE=/home/hostuser/.config/pulse/cookie
+      - FLO_RECORD_DEVICE=${FLO_RECORD_DEVICE:-pulse}
       - QT_X11_NO_MITSHM=1
       - LIBGL_ALWAYS_INDIRECT=0
       - UDEV=1                    # still useful for hot-plugged devices
@@ -30,9 +33,11 @@ services:
       # PulseWire socket + cookie (read-only is fine)
       - ${PULSE_DIR}:/tmp/pulse:ro
       - ${PULSE_DIR}/native:/tmp/pulse/native:ro
+      - ${HOME}/.config/pulse/cookie:/home/hostuser/.config/pulse/cookie:ro
       - ${XAUTHORITY}:/home/hostuser/.Xauthority:ro
       - ./certs/aws-credentials:/home/hostuser/.aws/credentials:ro
       - ./certs/aws-config:/home/hostuser/.aws/config:ro
+      - ./certs/gemini-api-key:/catkin_ws/src/certs/gemini-api-key:ro
       # - /dev/snd:/dev/snd                 # pass audio
     devices:
       - ${FLO_CAMERA_SOURCE:-/dev/flo_camera}:/dev/flo_camera

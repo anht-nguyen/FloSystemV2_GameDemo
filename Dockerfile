@@ -86,6 +86,8 @@ RUN python3 -m pip install --default-timeout=100 \
 
 RUN mkdir -p "${CATKIN_WS}/src" /root/.aws
 
+ENV GEMINI_API_KEY_FILE=/catkin_ws/src/certs/gemini-api-key
+
 COPY certs/aws-credentials /root/.aws/credentials
 COPY certs/aws-config /root/.aws/config
 
@@ -120,7 +122,7 @@ RUN chmod +x /usr/local/bin/ros_docker_auto_startup_launcher.sh && \
 RUN set -eux; \
     groupadd --gid "${GID}" hostgroup; \
     useradd --uid "${UID}" --gid hostgroup --create-home --shell /bin/bash hostuser; \
-    mkdir -p /home/hostuser/.aws; \
+    mkdir -p /home/hostuser/.aws /home/hostuser/.config/pulse; \
     cp /root/.aws/credentials /home/hostuser/.aws/credentials; \
     cp /root/.aws/config /home/hostuser/.aws/config; \
     chown -R hostuser:hostgroup "${CATKIN_WS}" /home/hostuser/.aws; \
@@ -128,5 +130,9 @@ RUN set -eux; \
 
 RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> /etc/bash.bashrc && \
     echo "source ${CATKIN_WS}/devel/setup.bash" >> /etc/bash.bashrc
+
+ENV HOME=/home/hostuser \
+    PULSE_COOKIE=/home/hostuser/.config/pulse/cookie \
+    FLO_RECORD_DEVICE=pulse
 
 # ENTRYPOINT ["/usr/local/bin/ros_docker_auto_startup_launcher.sh"]

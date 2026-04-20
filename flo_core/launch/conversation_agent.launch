@@ -1,0 +1,12 @@
+<launch>
+  <node pkg="flo_core" type="conversation_agent.py" name="conversation_agent" output="screen">
+    <param name="voice_id" value="Salli" />
+    <param name="aws_region" value="us-east-1" />
+    <param name="chat_model" value="$(optenv GEMINI_CHAT_MODEL gemini-2.5-flash)" />
+    <param name="transcription_model" value="$(optenv GEMINI_TRANSCRIPTION_MODEL gemini-2.5-flash)" />
+    <param name="listen_duration_s" value="6" />
+    <param name="record_device" value="$(optenv FLO_RECORD_DEVICE pulse)" />
+    <param name="loop" value="true" />
+    <param name="opening_prompt" value="Hi, I am Flo. What would you like to talk about today?" />
+  </node>
+</launch>

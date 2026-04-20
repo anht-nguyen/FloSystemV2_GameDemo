@@ -29,6 +29,7 @@ from typing import List
 import rospy
 import rospkg
 from serial import SerialException
+from std_msgs.msg import String
 
 from serial_coms import SerialCom  # same helper used elsewhere in FloSystem
 from flo_core_defs.msg import Emotion
@@ -65,10 +66,14 @@ class FaceComManager:
 
         # Timed auto‑reset ------------------------------------------
         self._last_state: int | None = None
+        self._last_face_key: str | None = None
+        self._conversation_face_active = False
         self._reset_timer: threading.Timer | None = None
 
         # ROS subscription ------------------------------------------
         rospy.Subscriber("/emotion", Emotion, self._emotion_cb, queue_size=5)
+        rospy.Subscriber("/conversation/face", String, self._face_name_cb, queue_size=5)
+        rospy.Subscriber("/conversation/state", String, self._conversation_state_cb, queue_size=5)
         rospy.loginfo("[face_com_manager] Ready – listening on /emotion")
         rospy.spin()
 
@@ -243,44 +248,59 @@ class FaceComManager:
     # ────────────────────────────────────────────────────────────────
     # ROS callback
     # ────────────────────────────────────────────────────────────────
-    def _emotion_cb(self, msg: Emotion):
-        """Render a face matching the *Emotion* enum and schedule auto‑reset."""
-        if msg.state == self._last_state and self._reset_timer is None:
-            return  # nothing new
-
-        # mouth = self.emotion_to_mouth.get(msg.state, "neutral")
-        # frame = self._compose_frame(mouth)
-        # self._send_pixels(frame)
-
-        mouth   = self.emotion_to_mouth.get(msg.state, "neutral")
-        mouth_b, left_b, right_b = self._compose_bits(mouth)
-
-        # 0 = mouth, 1 = R-eye, 2 = L-eye
+    def _show_face(self, mouth_key: str):
+        mouth_b, left_b, right_b = self._compose_bits(mouth_key)
         self._send_section(0, mouth_b)
         self._send_section(1, right_b)
         self._send_section(2, left_b)
-
-        # Optional: update global brightness (cmd 3) – keep 0-15 scale
         self._send_pixels([3, int(self.brightness & 0x0F)])
+        self._last_face_key = mouth_key
 
-        self._last_state = msg.state
-
-        # automatic return to neutral
-        if self.neutral_timeout > 0 and msg.state != Emotion.NEUTRAL:
+        if self.neutral_timeout > 0 and mouth_key != "neutral":
             if self._reset_timer:
                 self._reset_timer.cancel()
             self._reset_timer = threading.Timer(self.neutral_timeout, self._reset_neutral)
             self._reset_timer.start()
 
+    def _emotion_cb(self, msg: Emotion):
+        """Render a face matching the *Emotion* enum and schedule auto‑reset."""
+        if msg.state == self._last_state and self._reset_timer is None:
+            return  # nothing new
+
+        mouth = self.emotion_to_mouth.get(msg.state, "neutral")
+        self._show_face(mouth)
+        self._last_state = msg.state
+
+    def _face_name_cb(self, msg: String):
+        mouth_key = msg.data.strip()
+        if not mouth_key:
+            return
+        if mouth_key not in self.face_data["mouths"]:
+            rospy.logwarn_throttle(10.0, f"[face_com_manager] Unknown conversation face '{mouth_key}'")
+            mouth_key = "neutral"
+        if mouth_key == self._last_face_key and self._reset_timer is None:
+            return
+
+        self._conversation_face_active = True
+        self._show_face(mouth_key)
+        self._last_state = None
+
+    def _conversation_state_cb(self, msg: String):
+        state = msg.data.strip().lower()
+        if state == "speaking":
+            self._conversation_face_active = True
+            return
+        if state == "idle" and self._conversation_face_active:
+            if self._reset_timer:
+                self._reset_timer.cancel()
+                self._reset_timer = None
+            self._conversation_face_active = False
+            self._reset_neutral()
+
     def _reset_neutral(self):
-        # Build the three monochrome regions and send them with headers,
-        # exactly the same way _emotion_cb handles “happy” and “sad”.
-        mouth_b, left_b, right_b = self._compose_bits("neutral")
-        self._send_section(0, mouth_b)      # mouth
-        self._send_section(1, right_b)      # right eye
-        self._send_section(2, left_b)       # left eye
-        self._send_pixels([3, self.brightness & 0x0F])   # brightness (optional)
+        self._show_face("neutral")
         self._last_state = Emotion.NEUTRAL
+        self._conversation_face_active = False
         self._reset_timer = None
 
 

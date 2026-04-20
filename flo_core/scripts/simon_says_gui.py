@@ -4,6 +4,8 @@ ROS GUI for Dual‑Arm Simon Says – merged camera + controller window.
 """
 from __future__ import annotations
 
+import signal
+import subprocess
 import sys
 from enum import Enum
 
@@ -16,6 +18,7 @@ from PyQt5.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QPlainTextEdit,
     QPushButton,
     QSizePolicy,
     QVBoxLayout,
@@ -81,6 +84,7 @@ class SimonGUI(QWidget):
     instructionsClicked = pyqtSignal()
     calibrateClicked = pyqtSignal()
     startGameClicked = pyqtSignal()
+    conversationToggleClicked = pyqtSignal()
     pauseResumeClicked = pyqtSignal()
     pauseClicked = pyqtSignal()
     resumeClicked = pyqtSignal()
@@ -96,6 +100,7 @@ class SimonGUI(QWidget):
     turnUpdated = pyqtSignal(int)
     statusUpdated = pyqtSignal(str)
     uiStateUpdated = pyqtSignal(str)
+    conversationTextReceived = pyqtSignal(str, str)
     backendGameOver = pyqtSignal()
 
     def __init__(self):
@@ -112,6 +117,7 @@ class SimonGUI(QWidget):
         self.current_state: GameState = GameState.IDLE
         self.ready_for_start = False
         self.backend_ui_state = "booting"
+        self.conversation_process: subprocess.Popen | None = None
         self.bridge = CvBridge()
         self.current_camera_pixmap = None
 
@@ -122,9 +128,13 @@ class SimonGUI(QWidget):
         self.turnUpdated.connect(self._apply_turn_update)
         self.statusUpdated.connect(self._apply_status_update)
         self.uiStateUpdated.connect(self._apply_ui_state_update)
+        self.conversationTextReceived.connect(self._append_conversation_log)
 
         self.ticker = QTimer(self)
         self.ticker.timeout.connect(self._tick_timer)
+        self.conversation_monitor = QTimer(self)
+        self.conversation_monitor.timeout.connect(self._sync_conversation_process)
+        self.conversation_monitor.start(1000)
 
         self._build_fsm()
         self._update_buttons()
@@ -135,6 +145,8 @@ class SimonGUI(QWidget):
         rospy.Subscriber("/simon_game/turn_id", Int32, self._cb_turn)
         rospy.Subscriber("/simon_game/status", String, self._cb_status)
         rospy.Subscriber("/simon_game/ui_state", String, self._cb_ui_state)
+        rospy.Subscriber("/conversation/user_text", String, self._cb_user_text)
+        rospy.Subscriber("/conversation/assistant_text", String, self._cb_assistant_text)
         rospy.Subscriber(
             rospy.get_param("~preview_topic", "/arm_hand_tracker/preview_image"),
             Image,
@@ -182,6 +194,19 @@ class SimonGUI(QWidget):
                 border-radius: 12px;
                 padding: 14px;
                 font-size: 18px;
+            }
+            QLabel#logTitle {
+                font-size: 18px;
+                font-weight: 700;
+                color: #d7e4f5;
+                margin-top: 6px;
+            }
+            QPlainTextEdit#conversationLog {
+                background: #0f1822;
+                border: 1px solid #2e4359;
+                border-radius: 12px;
+                padding: 10px;
+                font-size: 15px;
             }
             QPushButton {
                 background: #2b8a78;
@@ -268,6 +293,7 @@ class SimonGUI(QWidget):
         self.btn_instructions = QPushButton("Read Instructions")
         self.btn_calibrate = QPushButton("Calibrate Camera")
         self.btn_start_game = QPushButton("Start Game")
+        self.btn_conversation = QPushButton("Start Conversation")
         self.btn_pause_resume = QPushButton("Pause Game")
         self.btn_stop = QPushButton("Stop")
         self.btn_restart = QPushButton("Restart Session")
@@ -293,16 +319,35 @@ class SimonGUI(QWidget):
         control_layout.addLayout(row1)
 
         row2 = QHBoxLayout()
-        for button in (self.btn_calibrate, self.btn_start_game, self.btn_pause_resume):
+        for button in (self.btn_calibrate, self.btn_start_game, self.btn_conversation):
             button.clicked.connect(self._on_button)
             row2.addWidget(button)
         control_layout.addLayout(row2)
 
         row3 = QHBoxLayout()
-        for button in (self.btn_stop, self.btn_restart, self.btn_quit):
+        for button in (self.btn_pause_resume, self.btn_stop, self.btn_restart):
             button.clicked.connect(self._on_button)
             row3.addWidget(button)
         control_layout.addLayout(row3)
+
+        row4 = QHBoxLayout()
+        self.btn_quit.clicked.connect(self._on_button)
+        row4.addWidget(self.btn_quit)
+        control_layout.addLayout(row4)
+
+        log_title = QLabel("Conversation Log")
+        log_title.setObjectName("logTitle")
+        control_layout.addWidget(log_title)
+
+        self.txt_conversation_log = QPlainTextEdit()
+        self.txt_conversation_log.setObjectName("conversationLog")
+        self.txt_conversation_log.setReadOnly(True)
+        self.txt_conversation_log.setPlaceholderText(
+            "Robot speech and recognized user speech will appear here."
+        )
+        self.txt_conversation_log.setMinimumHeight(180)
+        control_layout.addWidget(self.txt_conversation_log)
+
         control_layout.addStretch(1)
 
         root.addWidget(control_panel, 1)
@@ -401,6 +446,11 @@ class SimonGUI(QWidget):
 
     def _on_button(self):
         btn = self.sender()
+        if btn == self.btn_conversation:
+            self._toggle_conversation()
+            self.conversationToggleClicked.emit()
+            return
+
         cmd, signal = self._cmd_map[btn]
         if cmd == "pause_resume":
             cmd = "resume" if self.current_state == GameState.PAUSED else "pause"
@@ -413,6 +463,7 @@ class SimonGUI(QWidget):
             self._update_buttons()
         signal.emit()
         if cmd == "quit":
+            self._stop_conversation_process()
             rospy.signal_shutdown("Quit via GUI")
             QApplication.quit()
 
@@ -474,6 +525,12 @@ class SimonGUI(QWidget):
     def _cb_ui_state(self, msg: String):
         self.uiStateUpdated.emit(msg.data)
 
+    def _cb_user_text(self, msg: String):
+        self.conversationTextReceived.emit("User", msg.data)
+
+    def _cb_assistant_text(self, msg: String):
+        self.conversationTextReceived.emit("Flo", msg.data)
+
     def _apply_score_update(self, score: int):
         self.current_score = score
         self.lbl_score.setText(f"Score: {self.current_score}")
@@ -505,6 +562,14 @@ class SimonGUI(QWidget):
         elif ui_state == "game_over":
             self.backendGameOver.emit()
         self._update_buttons()
+
+    def _append_conversation_log(self, speaker: str, text: str):
+        entry = text.strip()
+        if not entry:
+            return
+        self.txt_conversation_log.appendPlainText(f"{speaker}: {entry}")
+        scrollbar = self.txt_conversation_log.verticalScrollBar()
+        scrollbar.setValue(scrollbar.maximum())
 
     def _cb_preview_image(self, msg: Image):
         try:
@@ -552,12 +617,18 @@ class SimonGUI(QWidget):
         else:
             self.btn_pause_resume.setText("Pause Game")
 
+        if self._is_conversation_running():
+            self.btn_conversation.setText("Stop Conversation")
+        else:
+            self.btn_conversation.setText("Start Conversation")
+
     def _update_buttons(self):
         for button in (
             self.btn_full_setup,
             self.btn_instructions,
             self.btn_calibrate,
             self.btn_start_game,
+            self.btn_conversation,
             self.btn_pause_resume,
             self.btn_stop,
             self.btn_restart,
@@ -566,11 +637,14 @@ class SimonGUI(QWidget):
             button.setEnabled(False)
 
         state = self.current_state
+        conversation_running = self._is_conversation_running()
+        game_running = state in (GameState.IN_GAME, GameState.PAUSED)
+
         if state == GameState.IDLE and self.ready_for_start:
             self.btn_full_setup.setEnabled(True)
             self.btn_instructions.setEnabled(True)
             self.btn_calibrate.setEnabled(True)
-            self.btn_start_game.setEnabled(True)
+            self.btn_start_game.setEnabled(not conversation_running)
         elif state == GameState.INTRO_WAIT:
             self.btn_stop.setEnabled(True)
             self.btn_restart.setEnabled(True)
@@ -578,12 +652,12 @@ class SimonGUI(QWidget):
                 self.btn_full_setup.setEnabled(True)
                 self.btn_instructions.setEnabled(True)
                 self.btn_calibrate.setEnabled(True)
-                self.btn_start_game.setEnabled(True)
+                self.btn_start_game.setEnabled(not conversation_running)
         elif state == GameState.READY and self.ready_for_start:
             self.btn_full_setup.setEnabled(True)
             self.btn_instructions.setEnabled(True)
             self.btn_calibrate.setEnabled(True)
-            self.btn_start_game.setEnabled(True)
+            self.btn_start_game.setEnabled(not conversation_running)
             self.btn_restart.setEnabled(True)
         elif state == GameState.INTRO:
             self.btn_restart.setEnabled(True)
@@ -601,7 +675,71 @@ class SimonGUI(QWidget):
         elif state == GameState.GAME_OVER:
             self.btn_restart.setEnabled(True)
 
+        self.btn_conversation.setEnabled(not game_running)
         self.btn_quit.setEnabled(True)
+        self._update_button_labels()
+
+    def _is_conversation_running(self) -> bool:
+        return self.conversation_process is not None and self.conversation_process.poll() is None
+
+    def _toggle_conversation(self):
+        if self._is_conversation_running():
+            self._stop_conversation_process()
+        else:
+            self._start_conversation_process()
+        self._update_buttons()
+
+    def _start_conversation_process(self):
+        if self._is_conversation_running():
+            return
+
+        try:
+            self.conversation_process = subprocess.Popen(
+                ["rosrun", "flo_core", "conversation_agent.py"],
+                start_new_session=True,
+            )
+            rospy.loginfo("[GUI] Started conversation agent")
+        except Exception as exc:
+            self.conversation_process = None
+            rospy.logerr("[GUI] Failed to start conversation agent: %s", exc)
+
+    def _stop_conversation_process(self):
+        process = self.conversation_process
+        self.conversation_process = None
+        if process is None:
+            return
+
+        if process.poll() is None:
+            try:
+                process.send_signal(signal.SIGINT)
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                rospy.logwarn("[GUI] Conversation agent did not stop after SIGINT; terminating")
+                process.terminate()
+                try:
+                    process.wait(timeout=3)
+                except subprocess.TimeoutExpired:
+                    rospy.logwarn("[GUI] Conversation agent did not terminate; killing")
+                    process.kill()
+                    process.wait(timeout=3)
+            except Exception as exc:
+                rospy.logwarn("[GUI] Failed to stop conversation agent cleanly: %s", exc)
+
+        rospy.loginfo("[GUI] Stopped conversation agent")
+
+    def _sync_conversation_process(self):
+        process = self.conversation_process
+        if process is None or process.poll() is None:
+            return
+
+        exit_code = process.returncode
+        self.conversation_process = None
+        rospy.loginfo("[GUI] Conversation agent exited with code %s", exit_code)
+        self._update_buttons()
+
+    def closeEvent(self, event):
+        self._stop_conversation_process()
+        super().closeEvent(event)
 
 
 def main():

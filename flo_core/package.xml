@@ -21,6 +21,7 @@
   <build_depend>cv_bridge</build_depend>
   <build_depend>flo_core_defs</build_depend>
   <build_depend>flo_humanoid</build_depend>
+  <build_depend>rospack</build_depend>
   <!-- For moveit_commander usage at build time, typically: -->
   <build_depend>moveit_ros_planning_interface</build_depend>
 
@@ -30,6 +31,8 @@
   <build_export_depend>std_msgs</build_export_depend>
   <build_export_depend>sensor_msgs</build_export_depend>
   <build_export_depend>cv_bridge</build_export_depend>
+  <build_export_depend>flo_core_defs</build_export_depend>
+  <build_export_depend>rospack</build_export_depend>
   <build_export_depend>moveit_ros_planning_interface</build_export_depend>
 
   <!-- Execution dependencies (use <exec_depend>, never <run_depend>) -->
@@ -40,6 +43,7 @@
   <exec_depend>cv_bridge</exec_depend>
   <exec_depend>flo_core_defs</exec_depend>
   <exec_depend>flo_humanoid</exec_depend>
+  <exec_depend>rospack</exec_depend>
   <!-- For Python-based MoveIt usage (moveit_commander, etc.): -->
   <exec_depend>moveit_ros_planning_interface</exec_depend>
 

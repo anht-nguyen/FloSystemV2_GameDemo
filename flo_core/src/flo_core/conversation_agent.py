@@ -314,15 +314,17 @@ class GeminiClient:
         language: str,
         temperature: float,
         allowed_faces: List[str],
-    ) -> Tuple[str, str, str]:
+    ) -> Tuple[str, str, str, bool]:
         instruction = (
             "Listen to the user's audio and do two things. "
             "First, transcribe exactly what the user said. "
             "Second, reply as Flo based on the conversation so far. "
-            "Return compact JSON with exactly three keys: "
+            "Return compact JSON with exactly four keys: "
             '"transcript" for the user transcript, "text" for Flo\'s spoken reply, '
-            '"face_name" for Flo\'s facial expression. '
+            '"face_name" for Flo\'s facial expression, and "end_conversation" as a boolean. '
             f'The "face_name" value must be exactly one of: {", ".join(allowed_faces)}. '
+            'Set "end_conversation" to true only when Flo has just handed the interaction off '
+            'to the instructor to start the game. Otherwise set it to false. '
             "Do not wrap the JSON in markdown fences or add extra commentary."
         )
         if language:
@@ -353,7 +355,7 @@ class GeminiClient:
                         "text": (
                             self._system_prompt
                             + " For this specific audio request, override the usual response schema and "
-                            + 'return exactly three JSON keys: "transcript", "text", and "face_name".'
+                            + 'return exactly four JSON keys: "transcript", "text", "face_name", and "end_conversation".'
                         )
                     }
                 ],
@@ -499,7 +501,22 @@ def _extract_json_object(raw_text: str) -> str:
     return text[start : end + 1]
 
 
-def _parse_structured_reply(raw_text: str, allowed_faces: List[str]) -> Tuple[str, str]:
+def _looks_like_conversation_handoff(text: str) -> bool:
+    normalized = (text or "").strip().lower()
+    if not normalized:
+        return False
+
+    handoff_markers = (
+        "wait for the instructor to start the game",
+        "wait for the instructor",
+        "the instructor will start the game",
+        "let the instructor start the game",
+        "the instructor can start the game",
+    )
+    return any(marker in normalized for marker in handoff_markers)
+
+
+def _parse_structured_reply(raw_text: str, allowed_faces: List[str]) -> Tuple[str, str, bool]:
     normalized_allowed = set(allowed_faces)
     json_blob = _extract_json_object(raw_text)
     if json_blob:
@@ -507,16 +524,21 @@ def _parse_structured_reply(raw_text: str, allowed_faces: List[str]) -> Tuple[st
             payload = json.loads(json_blob)
             reply_text = str(payload.get("text", "")).strip()
             face_name = str(payload.get("face_name", "")).strip()
+            end_conversation = bool(payload.get("end_conversation", False))
             if reply_text and face_name in normalized_allowed:
-                return reply_text, face_name
+                return reply_text, face_name, end_conversation
         except (TypeError, ValueError):
             pass
 
     fallback_text = (raw_text or "").strip()
-    return fallback_text, _infer_face_name(fallback_text)
+    return (
+        fallback_text,
+        _infer_face_name(fallback_text),
+        _looks_like_conversation_handoff(fallback_text),
+    )
 
 
-def _parse_audio_turn_reply(raw_text: str, allowed_faces: List[str]) -> Tuple[str, str, str]:
+def _parse_audio_turn_reply(raw_text: str, allowed_faces: List[str]) -> Tuple[str, str, str, bool]:
     normalized_allowed = set(allowed_faces)
     json_blob = _extract_json_object(raw_text)
     if json_blob:
@@ -525,13 +547,19 @@ def _parse_audio_turn_reply(raw_text: str, allowed_faces: List[str]) -> Tuple[st
             transcript = str(payload.get("transcript", "")).strip()
             reply_text = str(payload.get("text", "")).strip()
             face_name = str(payload.get("face_name", "")).strip()
+            end_conversation = bool(payload.get("end_conversation", False))
             if transcript and reply_text and face_name in normalized_allowed:
-                return transcript, reply_text, face_name
+                return transcript, reply_text, face_name, end_conversation
         except (TypeError, ValueError):
             pass
 
     fallback_text = (raw_text or "").strip()
-    return "", fallback_text, _infer_face_name(fallback_text)
+    return (
+        "",
+        fallback_text,
+        _infer_face_name(fallback_text),
+        _looks_like_conversation_handoff(fallback_text),
+    )
 
 
 class ConversationAgentNode:
@@ -612,9 +640,13 @@ class ConversationAgentNode:
             ),
         )
         self._system_prompt += (
-            " Return every answer as compact JSON with exactly two keys: "
-            '"text" for the spoken reply and "face_name" for the matching facial expression. '
+            " Return every answer as compact JSON with exactly three keys: "
+            '"text" for the spoken reply, "face_name" for the matching facial expression, '
+            'and "end_conversation" as a boolean. '
             f'The "face_name" value must be exactly one of: {", ".join(self._face_labels)}. '
+            'Set "end_conversation" to true only when you have invited the person to Simon Says, '
+            'they said yes, and you have just said to wait for the instructor to start the game. '
+            'Otherwise set it to false. '
             'Do not wrap the JSON in markdown fences or add extra commentary.'
         )
         self._stop_phrases = {
@@ -706,15 +738,18 @@ class ConversationAgentNode:
             self._tts.speak(text)
             self._publish_state("idle")
 
-    def _generate_reply(self, user_text: str) -> Tuple[str, str]:
+    def _generate_reply(self, user_text: str) -> Tuple[str, str, bool]:
         self._messages.append({"role": "user", "content": user_text})
         raw_reply = self._client.chat(self._messages, temperature=self._temperature)
-        reply_text, face_name = _parse_structured_reply(raw_reply, self._face_labels)
+        reply_text, face_name, end_conversation = _parse_structured_reply(
+            raw_reply,
+            self._face_labels,
+        )
         self._messages.append({"role": "assistant", "content": reply_text})
-        return reply_text, face_name
+        return reply_text, face_name, end_conversation
 
-    def _generate_audio_turn(self, audio_path: str) -> Tuple[str, str, str]:
-        transcript, reply_text, face_name = self._client.audio_turn(
+    def _generate_audio_turn(self, audio_path: str) -> Tuple[str, str, str, bool]:
+        transcript, reply_text, face_name, end_conversation = self._client.audio_turn(
             messages=self._messages,
             audio_path=audio_path,
             language=self._language,
@@ -725,7 +760,7 @@ class ConversationAgentNode:
             self._messages.append({"role": "user", "content": transcript})
         if reply_text:
             self._messages.append({"role": "assistant", "content": reply_text})
-        return transcript, reply_text, face_name
+        return transcript, reply_text, face_name, end_conversation
 
     def _handle_manual_input(self, msg: String):
         user_text = msg.data.strip()
@@ -737,14 +772,17 @@ class ConversationAgentNode:
             rospy.signal_shutdown("Manual stop phrase received")
             return
         try:
-            reply_text, face_name = self._generate_reply(user_text)
+            reply_text, face_name, end_conversation = self._generate_reply(user_text)
             self._speak(reply_text, face_name)
+            if end_conversation:
+                rospy.loginfo("Conversation reached instructor handoff; shutting down conversation agent")
+                rospy.signal_shutdown("Conversation handoff to instructor complete")
         except Exception as exc:
             rospy.logerr("Manual conversation turn failed: %r", exc)
             error_text, face_name = self._language_service_error_message(exc)
             self._speak(error_text, face_name)
 
-    def _listen_once(self) -> Optional[Tuple[str, str, str]]:
+    def _listen_once(self) -> Optional[Tuple[str, str, str, bool]]:
         audio_path = ""
         try:
             self._publish_state("listening")
@@ -756,10 +794,10 @@ class ConversationAgentNode:
                 )
                 return None
             self._publish_state("transcribing")
-            transcript, reply_text, face_name = self._generate_audio_turn(audio_path)
+            transcript, reply_text, face_name, end_conversation = self._generate_audio_turn(audio_path)
             if not transcript or not reply_text:
                 return None
-            return transcript, reply_text, face_name
+            return transcript, reply_text, face_name, end_conversation
         finally:
             self._publish_state("idle")
             if audio_path and os.path.exists(audio_path):
@@ -775,7 +813,7 @@ class ConversationAgentNode:
                     if not self._loop_enabled:
                         break
                     continue
-                transcript, reply_text, face_name = turn
+                transcript, reply_text, face_name, end_conversation = turn
 
                 rospy.loginfo("User said: %s", transcript)
                 self._user_text_pub.publish(String(data=transcript))
@@ -786,6 +824,9 @@ class ConversationAgentNode:
 
                 rospy.loginfo("Assistant replied: %s [face=%s]", reply_text, face_name)
                 self._speak(reply_text, face_name)
+                if end_conversation:
+                    rospy.loginfo("Conversation reached instructor handoff; stopping conversation loop")
+                    break
             except subprocess.CalledProcessError as exc:
                 rospy.logerr("Audio recording failed: %s", exc)
                 self._speak("I am having trouble using the microphone right now.", "sad")

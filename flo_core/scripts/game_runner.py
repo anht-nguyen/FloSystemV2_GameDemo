@@ -144,9 +144,14 @@ class CalibrationStage:
     def run(self):
         # 1) Tell GUI + Vision we’re entering calibration
         self._cmd_pub.publish(True)
-        self._prompt_pub.publish("Let’s do a quick camera check…")
+        self._prompt_pub.publish(
+            "Please stand in front of me about 5 feet, or 1.5 meters, away. "
+            "Then let's do a quick camera check."
+        )
         self._speak_async(
-            "Let's first make sure the camera can see you well. Please raise your arm fully overhead and hold it there."
+            "Please stand in front of me about 5 feet, or 1.5 meters, away. "
+            "Let's first make sure the camera can see you well. "
+            "Please raise your arm fully overhead and hold it there."
         )
 
         rate = rospy.Rate(10)

@@ -23,6 +23,36 @@ notify_desktop() {
     notify-send -u "$urgency" "$title" "$message" || true
 }
 
+confirm_startup() {
+  local title="Game Demo Startup"
+  local message="Do you want to bring up the game demo system now?"
+
+  if command -v zenity >/dev/null 2>&1; then
+    DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=/run/user/$(id -u)/bus}" \
+      zenity --question \
+        --title="$title" \
+        --text="$message" \
+        --ok-label="Start" \
+        --cancel-label="Not now"
+    return $?
+  fi
+
+  if command -v kdialog >/dev/null 2>&1; then
+    kdialog --title "$title" --yesno "$message" --yes-label "Start" --no-label "Not now"
+    return $?
+  fi
+
+  if command -v xmessage >/dev/null 2>&1; then
+    xmessage -center -buttons "Start:0,Not now:1" "$message"
+    return $?
+  fi
+
+  echo "$(date '+%F %T') [WARN] No GUI dialog tool found (zenity/kdialog/xmessage)."
+  notify_desktop normal "$title" \
+    "No dialog tool found, so auto startup will continue immediately."
+  return 0
+}
+
 announce_step() {
   local message="$1"
   echo "$(date '+%F %T') [INFO] ${message}"
@@ -78,6 +108,11 @@ wait_for_path() {
 MAX_WAIT=90          # seconds before we give up
 CHECK_INTERVAL=3     # seconds between checks
 ELAPSED=0
+
+if ! confirm_startup; then
+  announce_step "Startup canceled by user"
+  exit 0
+fi
 
 announce_step "Auto bring up robot"
 announce_step "Waiting for Wi-Fi connectivity"

@@ -159,6 +159,11 @@ ls -l /dev/flo_camera /dev/flo_motors /dev/flo_face
 
 Once installed, `utility/device_paths.py` will prefer `/dev/flo_camera`, `/dev/flo_motors`, and `/dev/flo_face`.
 
+If your webcam exposes more than one `/dev/video*` node, pass the actual capture
+device to `--camera` when generating the rule. The helper now records capture-specific
+matchers so `/dev/flo_camera` stays attached to the stream node instead of drifting
+to a metadata sibling.
+
 ## Simon Says Demo
 
 The main game launch file is:

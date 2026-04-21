@@ -121,6 +121,20 @@ def query_udev_properties(devnode: Path) -> Dict[str, str]:
     return properties
 
 
+def query_sysfs_attributes(devnode: Path) -> Dict[str, str]:
+    """Read useful sysfs attributes for the device when available."""
+    attributes: Dict[str, str] = {}
+
+    sys_class_path = Path("/sys/class") / "video4linux" / devnode.name
+    index_path = sys_class_path / "index"
+    if index_path.exists():
+        index_value = index_path.read_text(encoding="ascii").strip()
+        if index_value:
+            attributes["index"] = index_value
+
+    return attributes
+
+
 def choose_matchers(properties: Dict[str, str]) -> List[Tuple[str, str]]:
     preferred_keys: Sequence[str] = (
         "ID_SERIAL_SHORT",
@@ -159,6 +173,19 @@ def build_rule(spec: DeviceSpec, properties: Dict[str, str]) -> str:
     rule_parts = [f'SUBSYSTEM=="{spec.subsystem}"']
     for key, value in choose_matchers(properties):
         rule_parts.append(f'{key}=="{escape_rule_value(value)}"')
+
+    if spec.subsystem == "video4linux":
+        # Many UVC cameras expose multiple /dev/video* nodes. Restrict the
+        # symlink to the actual capture interface so it doesn't drift onto a
+        # metadata-only sibling node.
+        v4l_caps = properties.get("ID_V4L_CAPABILITIES")
+        if v4l_caps and ":capture:" in v4l_caps:
+            rule_parts.append('ENV{ID_V4L_CAPABILITIES}=="*:capture:*"')
+
+        index_value = query_sysfs_attributes(spec.devnode).get("index")
+        if index_value is not None:
+            rule_parts.append(f'ATTR{{index}}=="{escape_rule_value(index_value)}"')
+
     rule_parts.append(f'SYMLINK+="{spec.symlink}"')
     return ", ".join(rule_parts)
 

@@ -164,6 +164,19 @@ device to `--camera` when generating the rule. The helper now records capture-sp
 matchers so `/dev/flo_camera` stays attached to the stream node instead of drifting
 to a metadata sibling.
 
+To identify the right capture node on the host before generating the rule:
+
+```bash
+python3 utility/inspect_video_devices.py
+```
+
+Then use one of the reported `Recommended capture node(s)` with `--camera`.
+
+`docker_compose_up.sh` now runs the same detector automatically and exports
+`FLO_CAMERA_SOURCE` to the recommended capture-capable `/dev/video*` before
+starting the container. That means container recreation will prefer a real
+capture node even if `/dev/flo_camera` is stale on the host.
+
 ## Simon Says Demo
 
 The main game launch file is:

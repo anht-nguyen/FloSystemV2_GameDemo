@@ -114,14 +114,7 @@ Before starting GUI apps from Docker, allow local X11 access:
 
 ```bash
 xhost +local:
-export UID
-export GID=$(id -g)
-export XAUTHORITY=${XAUTHORITY:-$HOME/.Xauthority}
-export PULSE_DIR=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/pulse
-export FLO_RECORD_DEVICE=${FLO_RECORD_DEVICE:-pulse}
-eval "$(python3 utility/device_paths.py --format shell)"
-docker compose build
-docker compose up -d
+./docker_compose_up.sh
 ```
 
 ### 6. Inspect the running stack
@@ -137,6 +130,13 @@ To stop everything:
 
 ```bash
 docker compose down
+```
+
+To recreate the container with refreshed device-path resolution:
+
+```bash
+docker compose down
+./docker_compose_up.sh
 ```
 
 ## Device Setup

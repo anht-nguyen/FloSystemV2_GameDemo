@@ -61,6 +61,20 @@ def resolve_source_path(path_str: str) -> str:
     return os.path.realpath(path_str)
 
 
+def choose_source_path(preferred_path: str, legacy_path: str) -> str:
+    """Choose a host source path that actually exists, falling back to legacy kernel paths."""
+    resolved_preferred = resolve_source_path(preferred_path)
+    if os.path.exists(resolved_preferred):
+        return resolved_preferred
+
+    resolved_legacy = resolve_source_path(legacy_path)
+    if os.path.exists(resolved_legacy):
+        return resolved_legacy
+
+    # Preserve the preferred path as a final fallback so callers still see the intended stable path.
+    return resolved_preferred
+
+
 def get_device_paths(rules_path: Path = RULES_PATH) -> Dict[str, str]:
     """Return resolved device paths for camera, motor, and face devices."""
     paths = dict(UDEV_PATHS if rules_path.exists() else LEGACY_PATHS)
@@ -75,7 +89,7 @@ def get_device_paths(rules_path: Path = RULES_PATH) -> Dict[str, str]:
         if env_value:
             paths[f"{key}_source"] = env_value
         else:
-            paths[f"{key}_source"] = resolve_source_path(paths[key])
+            paths[f"{key}_source"] = choose_source_path(paths[key], LEGACY_PATHS[key])
 
     paths["rules_file"] = str(rules_path)
     paths["use_udev_rules"] = "1" if rules_path.exists() else "0"

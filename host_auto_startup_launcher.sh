@@ -212,18 +212,8 @@ if ! id -nG "$USER" | grep -qw docker; then
     "User '$USER' is not in the docker group. Startup may require sudo rights."
 fi
 
-# Export GUI and audio environment for ROS inside container
-export DISPLAY=:0
-export UID
-export GID="$(id -g)"
-export XAUTHORITY="$HOME/.Xauthority"
-export XDG_RUNTIME_DIR="/run/user/$(id -u)"
-export PULSE_SERVER="unix:$XDG_RUNTIME_DIR/pulse/native"
-export PULSE_DIR="$XDG_RUNTIME_DIR/pulse"
-eval "$(python3 "$CLONE_DIR/utility/device_paths.py" --format shell)"
-
 # Build and run in detached mode
-/usr/bin/docker compose up --build -d || {
+"$CLONE_DIR/docker_compose_up.sh" || {
   fail_with_notification "Failed to start the robot container. Check ${LOGFILE} for details."
 }
 

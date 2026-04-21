@@ -25,7 +25,7 @@ notify_desktop() {
 
 confirm_startup() {
   local title="Game Demo Startup"
-  local message="Do you want to bring up the game demo system now?"
+  local message="Do you want to bring up the game demo system now? Make sure you have wifi connection before starting."
 
   if command -v zenity >/dev/null 2>&1; then
     DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=/run/user/$(id -u)/bus}" \

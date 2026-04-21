@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=FloSystem Startup
+Comment=Start the FloSystem Docker container and software stack
+Exec=/usr/bin/env bash /home/rrl/FloSystemV2_GameDemo/docker_compose_up.sh
+Path=/home/rrl/FloSystemV2_GameDemo
+Terminal=true
+Categories=Development;Robotics;

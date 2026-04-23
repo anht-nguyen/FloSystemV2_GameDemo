@@ -110,6 +110,7 @@ class SimonGUI(QWidget):
         self.cmd_pub = rospy.Publisher("/simon_game/control", String, queue_size=10)
         self.turn_timeout = int(rospy.get_param("/game_runner/turn_timeout"))
         self.total_rounds = int(rospy.get_param("/game_runner/total_rounds"))
+        self.min_rounds = 1
 
         self.current_turn = 0
         self.current_score = 0
@@ -188,6 +189,15 @@ class SimonGUI(QWidget):
                 font-size: 17px;
                 font-weight: 600;
             }
+            QLabel#roundsValue {
+                background: #1a2735;
+                border: 1px solid #2e4359;
+                border-radius: 12px;
+                padding: 10px 12px;
+                font-size: 20px;
+                font-weight: 700;
+                min-width: 76px;
+            }
             QLabel#promptBox {
                 background: #1a2735;
                 border: 1px solid #2e4359;
@@ -227,6 +237,12 @@ class SimonGUI(QWidget):
             }
             QPushButton#secondary {
                 background: #405f8d;
+            }
+            QPushButton#roundAdjust {
+                background: #35506f;
+                min-height: 44px;
+                min-width: 52px;
+                padding: 8px 12px;
             }
             """
         )
@@ -288,6 +304,27 @@ class SimonGUI(QWidget):
         self.lbl_status = QLabel(f"Status: {self.current_state.value}")
         self.lbl_status.setObjectName("metric")
         control_layout.addWidget(self.lbl_status)
+
+        rounds_row = QHBoxLayout()
+        rounds_row.setSpacing(10)
+        rounds_label = QLabel("Total Rounds")
+        rounds_label.setStyleSheet("font-size: 18px; font-weight: 700; color: #d7e4f5;")
+        self.btn_rounds_down = QPushButton("▼")
+        self.btn_rounds_up = QPushButton("▲")
+        self.btn_rounds_down.setObjectName("roundAdjust")
+        self.btn_rounds_up.setObjectName("roundAdjust")
+        self.btn_rounds_value = QLabel()
+        self.btn_rounds_value.setObjectName("roundsValue")
+        self.btn_rounds_value.setAlignment(Qt.AlignCenter)
+        self.btn_rounds_down.clicked.connect(lambda: self._adjust_total_rounds(-1))
+        self.btn_rounds_up.clicked.connect(lambda: self._adjust_total_rounds(1))
+        rounds_row.addWidget(rounds_label)
+        rounds_row.addStretch(1)
+        rounds_row.addWidget(self.btn_rounds_down)
+        rounds_row.addWidget(self.btn_rounds_value)
+        rounds_row.addWidget(self.btn_rounds_up)
+        control_layout.addLayout(rounds_row)
+        self._refresh_rounds_display()
 
         self.btn_full_setup = QPushButton("Run Full Setup")
         self.btn_instructions = QPushButton("Read Instructions")
@@ -604,6 +641,35 @@ class SimonGUI(QWidget):
         minutes, secs = divmod(seconds, 60)
         return f"{minutes:02d}:{secs:02d}"
 
+    def _refresh_rounds_display(self):
+        self.btn_rounds_value.setText(str(self.total_rounds))
+        self.lbl_turn.setText(f"Turn: {self.current_turn}/{self.total_rounds}")
+
+    def _set_total_rounds(self, rounds: int):
+        rounds = max(self.min_rounds, int(rounds))
+        if rounds == self.total_rounds:
+            return
+
+        self.total_rounds = rounds
+        rospy.set_param("/game_runner/total_rounds", self.total_rounds)
+        rospy.set_param("~total_rounds", self.total_rounds)
+        rospy.loginfo(f"[GUI] Updated total_rounds to {self.total_rounds}")
+        self._refresh_rounds_display()
+        self._update_buttons()
+
+    def _adjust_total_rounds(self, delta: int):
+        if not self._rounds_edit_enabled():
+            return
+        self._set_total_rounds(self.total_rounds + delta)
+
+    def _rounds_edit_enabled(self) -> bool:
+        return self.current_state in (
+            GameState.IDLE,
+            GameState.INTRO_WAIT,
+            GameState.READY,
+            GameState.GAME_OVER,
+        )
+
     def _update_button_labels(self):
         if self.current_state in (GameState.INTRO_WAIT, GameState.CALIBRATING):
             self.btn_stop.setText("Cancel Setup")
@@ -677,6 +743,9 @@ class SimonGUI(QWidget):
 
         self.btn_conversation.setEnabled(not game_running)
         self.btn_quit.setEnabled(True)
+        rounds_editable = self._rounds_edit_enabled()
+        self.btn_rounds_down.setEnabled(rounds_editable and self.total_rounds > self.min_rounds)
+        self.btn_rounds_up.setEnabled(rounds_editable)
         self._update_button_labels()
 
     def _is_conversation_running(self) -> bool:

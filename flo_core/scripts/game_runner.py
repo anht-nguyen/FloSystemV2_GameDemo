@@ -930,6 +930,17 @@ class GameController:
         self._publish_ui_state("ready")
         self.status_pub.publish(READY_STATUS)
 
+    def _refresh_runtime_params(self):
+        latest_total_rounds = int(rospy.get_param("~total_rounds"))
+        if latest_total_rounds != self.params["total_rounds"]:
+            rospy.loginfo(
+                "[game_runner] Updating total_rounds from %s to %s",
+                self.params["total_rounds"],
+                latest_total_rounds,
+            )
+            self.params["total_rounds"] = latest_total_rounds
+            self._rebuild_game_state_machine()
+
     def _rebuild_game_state_machine(self):
         self.sequence = []
         for _ in range(self.params["total_rounds"]):
@@ -945,6 +956,7 @@ class GameController:
     def _start_game(self):
         if self.running or self.intro_in_progress:
             return
+        self._refresh_runtime_params()
         self.intro_in_progress = True
         threading.Thread(target=self._run_start_game_sequence, daemon=True).start()
 

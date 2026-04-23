@@ -724,25 +724,26 @@ class SimonGUI(QWidget):
 
         state = self.current_state
         conversation_running = self._is_conversation_running()
+        setup_allowed = not conversation_running
         game_running = state in (GameState.IN_GAME, GameState.PAUSED)
 
         if state == GameState.IDLE and self.ready_for_start:
-            self.btn_full_setup.setEnabled(True)
-            self.btn_instructions.setEnabled(True)
-            self.btn_calibrate.setEnabled(True)
+            self.btn_full_setup.setEnabled(setup_allowed)
+            self.btn_instructions.setEnabled(setup_allowed)
+            self.btn_calibrate.setEnabled(setup_allowed)
             self.btn_start_game.setEnabled(not conversation_running)
         elif state == GameState.INTRO_WAIT:
             self.btn_stop.setEnabled(True)
             self.btn_restart.setEnabled(True)
             if self.ready_for_start:
-                self.btn_full_setup.setEnabled(True)
-                self.btn_instructions.setEnabled(True)
-                self.btn_calibrate.setEnabled(True)
+                self.btn_full_setup.setEnabled(setup_allowed)
+                self.btn_instructions.setEnabled(setup_allowed)
+                self.btn_calibrate.setEnabled(setup_allowed)
                 self.btn_start_game.setEnabled(not conversation_running)
         elif state == GameState.READY and self.ready_for_start:
-            self.btn_full_setup.setEnabled(True)
-            self.btn_instructions.setEnabled(True)
-            self.btn_calibrate.setEnabled(True)
+            self.btn_full_setup.setEnabled(setup_allowed)
+            self.btn_instructions.setEnabled(setup_allowed)
+            self.btn_calibrate.setEnabled(setup_allowed)
             self.btn_start_game.setEnabled(not conversation_running)
             self.btn_restart.setEnabled(True)
         elif state == GameState.INTRO:

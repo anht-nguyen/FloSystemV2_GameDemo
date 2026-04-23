@@ -397,7 +397,7 @@ class SimonGUI(QWidget):
 
         self.btn_full_setup = SetupActionButton(
             "Run Full Setup",
-            "(instructions + calibration)",
+            "(Instr. + Calib.)",
         )
         self.btn_instructions = QPushButton("Read Instructions")
         self.btn_calibrate = QPushButton("Calibrate Camera")

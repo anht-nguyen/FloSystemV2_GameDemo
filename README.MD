@@ -12,6 +12,8 @@ ROS Noetic workspace for the FLO V2 robot demo, including dual-arm control, face
 - `flov2_robot_description`: URDF, SRDF, meshes, and robot description assets.
 - `utility/`: Host-side helpers for device-path resolution and udev rule generation.
 
+Architecture and interaction diagrams live in [`docs/architecture_diagrams.md`](/home/rrl/FloSystemV2_GameDemo/docs/architecture_diagrams.md).
+
 ## Current Startup Flow
 
 The current Docker workflow launches the full demo stack automatically inside a `tmux` session:

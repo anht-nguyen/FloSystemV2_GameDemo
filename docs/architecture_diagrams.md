@@ -124,17 +124,18 @@ flowchart LR
 ## Human-Robot Interaction Flow
 
 ```mermaid
+%%{init: {"flowchart": {"nodeSpacing": 90, "rankSpacing": 110, "padding": 30, "htmlLabels": true}, "themeCSS": ".edgeLabel { font-size: 10px; padding: 4px 8px; }"}}%%
 flowchart TD
-  op["Robot Operator"] -->|"Launches Docker stack\nand opens GUI"| boot["System boot"]
+  op["Robot Operator"] -->|"Launches Docker stack<br/>and opens GUI"| boot["System boot"]
   boot --> robot_ready["Robot stack ready"]
   robot_ready -->|"Clicks setup / calibrate / start"| gui["Simon Says GUI"]
 
   gui -->|"Control commands"| runner["game_runner"]
   runner -->|"Calibration request"| vision["Vision tracker"]
-  participant["Participant"] -->|"Stands in view,\nraises arm,\nrepositions"| vision
+  participant["Participant"] -->|"Stands in view<br/>raises arm<br/>repositions"| vision
   vision -->|"Calibration status + pose scores"| runner
-  runner -->|"Prompt text to GUI\nand spoken instructions"| robot["Robot"]
-  robot -->|"Arm motion via MoveIt\n+ face expression"| participant
+  runner -->|"Prompt text to GUI<br/>and spoken instructions"| robot["Robot"]
+  robot -->|"Arm motion via MoveIt<br/>+ face expression"| participant
 
   participant -->|"Imitates action or stays still"| vision
   vision -->|"Pose match / similarity"| runner
@@ -152,4 +153,3 @@ flowchart TD
 - `Participant`: responds to Flo's instructions and is tracked by the vision node.
 - `Robot`: combines arm motion, face output, and spoken prompts to run the activity.
 - `Vision system`: closes the loop by checking whether the participant matched the expected pose.
-

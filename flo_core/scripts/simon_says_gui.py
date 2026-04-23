@@ -223,10 +223,10 @@ class SimonGUI(QWidget):
                 border: none;
                 border-radius: 12px;
                 color: white;
-                font-size: 17px;
+                font-size: 16px;
                 font-weight: 700;
-                min-height: 52px;
-                padding: 10px 14px;
+                min-height: 42px;
+                padding: 8px 12px;
             }
             QPushButton:disabled {
                 background: #4a5d70;
@@ -246,9 +246,9 @@ class SimonGUI(QWidget):
             }
             QPushButton#roundAdjust {
                 background: #35506f;
-                min-height: 44px;
+                min-height: 38px;
                 min-width: 52px;
-                padding: 8px 12px;
+                padding: 6px 10px;
             }
             """
         )
@@ -281,16 +281,21 @@ class SimonGUI(QWidget):
         control_layout = QVBoxLayout(control_panel)
         control_layout.setContentsMargins(18, 18, 18, 18)
         control_layout.setSpacing(14)
-        control_layout.setAlignment(Qt.AlignTop)
+
+        controller_section = QWidget()
+        controller_layout = QVBoxLayout(controller_section)
+        controller_layout.setContentsMargins(0, 0, 0, 0)
+        controller_layout.setSpacing(14)
+        controller_layout.setAlignment(Qt.AlignTop)
 
         title = QLabel("Game Controller")
         title.setStyleSheet("font-size: 24px; font-weight: 700;")
-        control_layout.addWidget(title)
+        controller_layout.addWidget(title)
 
         self.lbl_prompt = QLabel("Prompt: –")
         self.lbl_prompt.setObjectName("promptBox")
         self.lbl_prompt.setWordWrap(True)
-        control_layout.addWidget(self.lbl_prompt)
+        controller_layout.addWidget(self.lbl_prompt)
 
         self.lbl_turn = QLabel(f"Turn: 0/{self.total_rounds}")
         self.lbl_score = QLabel("Score: 0")
@@ -300,16 +305,16 @@ class SimonGUI(QWidget):
         row = QHBoxLayout()
         row.addWidget(self.lbl_turn)
         row.addWidget(self.lbl_score)
-        control_layout.addLayout(row)
+        controller_layout.addLayout(row)
 
         self.lbl_timer = QLabel(self._fmt_time(self.remaining_time))
         self.lbl_timer.setAlignment(Qt.AlignCenter)
         self.lbl_timer.setObjectName("metric")
-        control_layout.addWidget(self.lbl_timer)
+        controller_layout.addWidget(self.lbl_timer)
 
         self.lbl_status = QLabel(f"Status: {self.current_state.value}")
         self.lbl_status.setObjectName("metric")
-        control_layout.addWidget(self.lbl_status)
+        controller_layout.addWidget(self.lbl_status)
 
         rounds_row = QHBoxLayout()
         rounds_row.setSpacing(10)
@@ -329,7 +334,7 @@ class SimonGUI(QWidget):
         rounds_row.addWidget(self.btn_rounds_down)
         rounds_row.addWidget(self.btn_rounds_value)
         rounds_row.addWidget(self.btn_rounds_up)
-        control_layout.addLayout(rounds_row)
+        controller_layout.addLayout(rounds_row)
         self._refresh_rounds_display()
 
         self.btn_full_setup = QPushButton("Run Full Setup")
@@ -357,39 +362,46 @@ class SimonGUI(QWidget):
         for button in (self.btn_full_setup, self.btn_instructions):
             button.clicked.connect(self._on_button)
             row1.addWidget(button)
-        control_layout.addLayout(row1)
+        controller_layout.addLayout(row1)
 
         row2 = QHBoxLayout()
         for button in (self.btn_calibrate, self.btn_start_game):
             button.clicked.connect(self._on_button)
             row2.addWidget(button)
-        control_layout.addLayout(row2)
+        controller_layout.addLayout(row2)
 
         row3 = QHBoxLayout()
         for button in (self.btn_pause_resume, self.btn_stop, self.btn_restart):
             button.clicked.connect(self._on_button)
             row3.addWidget(button)
-        control_layout.addLayout(row3)
+        controller_layout.addLayout(row3)
+
+        conversation_section = QWidget()
+        conversation_layout = QVBoxLayout(conversation_section)
+        conversation_layout.setContentsMargins(0, 0, 0, 0)
+        conversation_layout.setSpacing(10)
 
         log_title = QLabel("Conversation Log")
         log_title.setObjectName("logTitle")
-        control_layout.addWidget(log_title)
+        conversation_layout.addWidget(log_title)
 
         conversation_row = QHBoxLayout()
         self.btn_conversation.clicked.connect(self._on_button)
         conversation_row.addWidget(self.btn_conversation)
-        control_layout.addLayout(conversation_row)
+        conversation_layout.addLayout(conversation_row)
 
         self.txt_conversation_log = QPlainTextEdit()
         self.txt_conversation_log.setObjectName("conversationLog")
         self.txt_conversation_log.setReadOnly(True)
+        self.txt_conversation_log.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
         self.txt_conversation_log.setPlaceholderText(
             "Robot speech and recognized user speech will appear here."
         )
-        self.txt_conversation_log.setMinimumHeight(180)
-        control_layout.addWidget(self.txt_conversation_log)
+        self.txt_conversation_log.setMinimumHeight(240)
+        conversation_layout.addWidget(self.txt_conversation_log, 1)
 
-        control_layout.addStretch(1)
+        control_layout.addWidget(controller_section, 1)
+        control_layout.addWidget(conversation_section, 1)
 
         root.addWidget(control_panel, 1)
 

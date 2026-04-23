@@ -679,7 +679,12 @@ class ConversationAgentNode:
         self._speak_lock = threading.Lock()
 
         self._user_text_pub = rospy.Publisher("/conversation/user_text", String, queue_size=10)
-        self._assistant_text_pub = rospy.Publisher("/conversation/assistant_text", String, queue_size=10)
+        self._assistant_text_pub = rospy.Publisher(
+            "/conversation/assistant_text",
+            String,
+            queue_size=10,
+            latch=True,
+        )
         self._assistant_emotion_pub = rospy.Publisher("/conversation/emotion", Emotion, queue_size=10)
         self._assistant_face_pub = rospy.Publisher("/conversation/face", String, queue_size=10)
         self._state_pub = rospy.Publisher("/conversation/state", String, queue_size=10)

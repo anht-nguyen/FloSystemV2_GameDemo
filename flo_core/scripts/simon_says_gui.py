@@ -12,7 +12,7 @@ from enum import Enum
 import rospy
 from cv_bridge import CvBridge, CvBridgeError
 from PyQt5.QtCore import Qt, QState, QStateMachine, QTimer, pyqtSignal
-from PyQt5.QtGui import QColor, QImage, QPainter, QPixmap
+from PyQt5.QtGui import QColor, QFont, QImage, QPainter, QPalette, QPixmap
 from PyQt5.QtWidgets import (
     QApplication,
     QFrame,
@@ -21,6 +21,9 @@ from PyQt5.QtWidgets import (
     QPlainTextEdit,
     QPushButton,
     QSizePolicy,
+    QStyle,
+    QStyleOptionButton,
+    QStylePainter,
     QVBoxLayout,
     QWidget,
 )
@@ -75,6 +78,61 @@ class CameraView(QWidget):
         x_pos = content_rect.x() + (content_rect.width() - scaled.width()) // 2
         y_pos = content_rect.y() + (content_rect.height() - scaled.height()) // 2
         painter.drawPixmap(x_pos, y_pos, scaled)
+
+
+class SetupActionButton(QPushButton):
+    """Button with a bold title and lighter subtitle."""
+
+    def __init__(self, title: str, subtitle: str, parent=None):
+        super().__init__("", parent)
+        self._title = title
+        self._subtitle = subtitle
+        self.setMinimumHeight(58)
+
+    def paintEvent(self, event):
+        painter = QStylePainter(self)
+        option = QStyleOptionButton()
+        self.initStyleOption(option)
+        option.text = ""
+        painter.drawControl(QStyle.CE_PushButton, option)
+
+        content_rect = self.style().subElementRect(
+            QStyle.SE_PushButtonContents,
+            option,
+            self,
+        )
+        color_group = QPalette.Active if self.isEnabled() else QPalette.Disabled
+        text_color = self.palette().color(color_group, QPalette.ButtonText)
+
+        title_font = QFont(self.font())
+        title_font.setBold(True)
+        title_font.setPointSize(max(title_font.pointSize(), 16))
+
+        subtitle_font = QFont(self.font())
+        subtitle_font.setBold(False)
+        subtitle_font.setPointSize(max(subtitle_font.pointSize() - 2, 11))
+
+        painter.setFont(title_font)
+        title_height = painter.fontMetrics().height()
+        painter.setFont(subtitle_font)
+        subtitle_height = painter.fontMetrics().height()
+        spacing = 2
+        total_height = title_height + spacing + subtitle_height
+        start_y = content_rect.y() + (content_rect.height() - total_height) // 2
+
+        painter.setPen(text_color)
+        painter.setFont(title_font)
+        painter.drawText(
+            content_rect.adjusted(0, start_y - content_rect.y(), 0, 0),
+            Qt.AlignHCenter | Qt.AlignTop,
+            self._title,
+        )
+        painter.setFont(subtitle_font)
+        painter.drawText(
+            content_rect.adjusted(0, start_y + title_height + spacing - content_rect.y(), 0, 0),
+            Qt.AlignHCenter | Qt.AlignTop,
+            self._subtitle,
+        )
 
 
 class SimonGUI(QWidget):
@@ -337,7 +395,10 @@ class SimonGUI(QWidget):
         controller_layout.addLayout(rounds_row)
         self._refresh_rounds_display()
 
-        self.btn_full_setup = QPushButton("Run Full Setup")
+        self.btn_full_setup = SetupActionButton(
+            "Run Full Setup",
+            "(instructions + calibration)",
+        )
         self.btn_instructions = QPushButton("Read Instructions")
         self.btn_calibrate = QPushButton("Calibrate Camera")
         self.btn_start_game = QPushButton("Start Game")
@@ -624,6 +685,19 @@ class SimonGUI(QWidget):
         scrollbar = self.txt_conversation_log.verticalScrollBar()
         scrollbar.setValue(scrollbar.maximum())
 
+    def _append_conversation_separator(self):
+        document_text = self.txt_conversation_log.toPlainText().rstrip()
+        if not document_text:
+            return
+
+        separator = "-" * 48
+        if document_text.splitlines()[-1] == separator:
+            return
+
+        self.txt_conversation_log.appendPlainText(separator)
+        scrollbar = self.txt_conversation_log.verticalScrollBar()
+        scrollbar.setValue(scrollbar.maximum())
+
     def _cb_preview_image(self, msg: Image):
         try:
             frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
@@ -773,7 +847,7 @@ class SimonGUI(QWidget):
 
     def _toggle_conversation(self):
         if self._is_conversation_running():
-            self._stop_conversation_process()
+            self._stop_conversation_process(add_log_separator=True)
         else:
             self._start_conversation_process()
         self._update_buttons()
@@ -792,7 +866,7 @@ class SimonGUI(QWidget):
             self.conversation_process = None
             rospy.logerr("[GUI] Failed to start conversation agent: %s", exc)
 
-    def _stop_conversation_process(self):
+    def _stop_conversation_process(self, add_log_separator: bool = False):
         process = self.conversation_process
         self.conversation_process = None
         if process is None:
@@ -815,6 +889,8 @@ class SimonGUI(QWidget):
                 rospy.logwarn("[GUI] Failed to stop conversation agent cleanly: %s", exc)
 
         rospy.loginfo("[GUI] Stopped conversation agent")
+        if add_log_separator:
+            self._append_conversation_separator()
 
     def _sync_conversation_process(self):
         process = self.conversation_process

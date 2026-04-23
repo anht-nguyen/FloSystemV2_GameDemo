@@ -28,4 +28,7 @@ else
 fi
 
 cd "$SCRIPT_DIR"
-exec /usr/bin/docker compose up --build -d "$@"
+
+# Always recreate the service container so the ROS/tmux startup stack is relaunched
+# even if the previous container is still alive after the GUI has quit.
+exec /usr/bin/docker compose up --build -d --force-recreate "$@"

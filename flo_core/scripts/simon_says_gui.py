@@ -238,6 +238,12 @@ class SimonGUI(QWidget):
             QPushButton#secondary {
                 background: #405f8d;
             }
+            QPushButton#conversationToggle {
+                background: #2f6db2;
+            }
+            QPushButton#conversationToggle[running="true"] {
+                background: #c45a2d;
+            }
             QPushButton#roundAdjust {
                 background: #35506f;
                 min-height: 44px;
@@ -331,12 +337,11 @@ class SimonGUI(QWidget):
         self.btn_calibrate = QPushButton("Calibrate Camera")
         self.btn_start_game = QPushButton("Start Game")
         self.btn_conversation = QPushButton("Start Conversation")
+        self.btn_conversation.setObjectName("conversationToggle")
         self.btn_pause_resume = QPushButton("Pause Game")
         self.btn_stop = QPushButton("Stop")
         self.btn_restart = QPushButton("Restart Session")
-        self.btn_quit = QPushButton("Quit")
         self.btn_stop.setObjectName("danger")
-        self.btn_quit.setObjectName("secondary")
 
         self._cmd_map = {
             self.btn_full_setup: ("run_full_setup", self.fullSetupClicked),
@@ -346,7 +351,6 @@ class SimonGUI(QWidget):
             self.btn_pause_resume: ("pause_resume", self.pauseResumeClicked),
             self.btn_stop: ("stop", self.stopClicked),
             self.btn_restart: ("restart", self.restartClicked),
-            self.btn_quit: ("quit", self.quitClicked),
         }
 
         row1 = QHBoxLayout()
@@ -356,7 +360,7 @@ class SimonGUI(QWidget):
         control_layout.addLayout(row1)
 
         row2 = QHBoxLayout()
-        for button in (self.btn_calibrate, self.btn_start_game, self.btn_conversation):
+        for button in (self.btn_calibrate, self.btn_start_game):
             button.clicked.connect(self._on_button)
             row2.addWidget(button)
         control_layout.addLayout(row2)
@@ -367,14 +371,14 @@ class SimonGUI(QWidget):
             row3.addWidget(button)
         control_layout.addLayout(row3)
 
-        row4 = QHBoxLayout()
-        self.btn_quit.clicked.connect(self._on_button)
-        row4.addWidget(self.btn_quit)
-        control_layout.addLayout(row4)
-
         log_title = QLabel("Conversation Log")
         log_title.setObjectName("logTitle")
         control_layout.addWidget(log_title)
+
+        conversation_row = QHBoxLayout()
+        self.btn_conversation.clicked.connect(self._on_button)
+        conversation_row.addWidget(self.btn_conversation)
+        control_layout.addLayout(conversation_row)
 
         self.txt_conversation_log = QPlainTextEdit()
         self.txt_conversation_log.setObjectName("conversationLog")
@@ -685,8 +689,13 @@ class SimonGUI(QWidget):
 
         if self._is_conversation_running():
             self.btn_conversation.setText("Stop Conversation")
+            self.btn_conversation.setProperty("running", "true")
         else:
             self.btn_conversation.setText("Start Conversation")
+            self.btn_conversation.setProperty("running", "false")
+        self.btn_conversation.style().unpolish(self.btn_conversation)
+        self.btn_conversation.style().polish(self.btn_conversation)
+        self.btn_conversation.update()
 
     def _update_buttons(self):
         for button in (
@@ -698,7 +707,6 @@ class SimonGUI(QWidget):
             self.btn_pause_resume,
             self.btn_stop,
             self.btn_restart,
-            self.btn_quit,
         ):
             button.setEnabled(False)
 
@@ -742,7 +750,6 @@ class SimonGUI(QWidget):
             self.btn_restart.setEnabled(True)
 
         self.btn_conversation.setEnabled(not game_running)
-        self.btn_quit.setEnabled(True)
         rounds_editable = self._rounds_edit_enabled()
         self.btn_rounds_down.setEnabled(rounds_editable and self.total_rounds > self.min_rounds)
         self.btn_rounds_up.setEnabled(rounds_editable)
